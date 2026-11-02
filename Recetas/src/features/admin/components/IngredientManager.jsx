@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth, AuthProvider } from '@/features/auth/context/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 import { toast, Modal, Button, Select, ListBox, Label } from "@heroui/react";
@@ -37,7 +37,8 @@ import {
     Loader2,
     TriangleAlert,
     Coffee,
-    Wand2
+    Wand2,
+    Info
 } from 'lucide-react';
 
 export const INGREDIENT_CATEGORIES = [
@@ -262,6 +263,13 @@ function IngredientesAdminContent() {
     const [isSaving, setIsSaving] = useState(false);
     const [isNormalizing, setIsNormalizing] = useState(false);
 
+    // AI Autocomplete states
+    const [isAiLoading, setIsAiLoading] = useState(false);
+    const [aiSuggestionDismissed, setAiSuggestionDismissed] = useState(false);
+    const [lastAutocompletedName, setLastAutocompletedName] = useState('');
+    const [hasAiAutocompleted, setHasAiAutocompleted] = useState(false);
+    const nameInputRef = useRef(null);
+
     // Hover tooltip state for categories
     const [hoveredCategory, setHoveredCategory] = useState(null);
     const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
@@ -366,12 +374,36 @@ function IngredientesAdminContent() {
             return;
         }
         setIsSaving(true);
-        const payload = { 
-            ...formData,
-            categoria: normalizeCategory(formData.categoria),
-            tipo_medida: formData.tipo_medida || 'peso'
+
+        const parseNullableNum = (v) => {
+            if (v === '' || v === null || v === undefined) return null;
+            const n = Number(v);
+            return isNaN(n) ? null : n;
         };
-        delete payload.id;
+
+        const parseNum = (v) => {
+            if (v === '' || v === null || v === undefined) return 0;
+            const n = Number(v);
+            return isNaN(n) ? 0 : n;
+        };
+
+        const payload = { 
+            nombre: formData.nombre.trim(),
+            categoria: normalizeCategory(formData.categoria),
+            tipo_medida: formData.tipo_medida || 'peso',
+            calorias_por_100g: parseNum(formData.calorias_por_100g),
+            proteinas_por_100g: parseNum(formData.proteinas_por_100g),
+            grasas_por_100g: parseNum(formData.grasas_por_100g),
+            carbohidratos_por_100g: parseNum(formData.carbohidratos_por_100g),
+            fibra_por_100g: parseNum(formData.fibra_por_100g),
+            azucares_por_100g: parseNum(formData.azucares_por_100g),
+            sodio_mg_por_100g: parseNum(formData.sodio_mg_por_100g),
+            peso_por_unidad_gramos: parseNullableNum(formData.peso_por_unidad_gramos),
+            peso_por_taza_gramos: parseNullableNum(formData.peso_por_taza_gramos),
+            peso_por_cucharada_gramos: parseNullableNum(formData.peso_por_cucharada_gramos),
+            es_vegano: Boolean(formData.es_vegano),
+            es_libre_de_gluten: Boolean(formData.es_libre_de_gluten)
+        };
         try {
             if (formData.id) {
                 const { error } = await supabase.from('core_ingrediente').update(payload).eq('id', formData.id);
@@ -447,10 +479,17 @@ function IngredientesAdminContent() {
 
     const openModal = (item = null, viewOnly = false) => {
         setIsViewMode(viewOnly);
+        setIsAiLoading(false);
+        setAiSuggestionDismissed(false);
+        setLastAutocompletedName('');
+        setHasAiAutocompleted(false);
         setFormData(item ? { 
             ...item,
             categoria: normalizeCategory(item.categoria),
-            tipo_medida: item.tipo_medida || getTipoMedida(item) || 'peso'
+            tipo_medida: item.tipo_medida || getTipoMedida(item) || 'peso',
+            peso_por_unidad_gramos: item.peso_por_unidad_gramos ?? '',
+            peso_por_taza_gramos: item.peso_por_taza_gramos ?? '',
+            peso_por_cucharada_gramos: item.peso_por_cucharada_gramos ?? ''
         } : { 
             id: null, 
             nombre: '', 
@@ -471,6 +510,89 @@ function IngredientesAdminContent() {
         });
         setIsModalOpen(true);
     };
+
+    const handleAiAutocomplete = async (ingredientName = null) => {
+        const queryName = (typeof ingredientName === 'string' ? ingredientName : formData.nombre || '').trim();
+        if (!queryName) {
+            toast.danger("Escribe el nombre del ingrediente antes de autocompletar con IA.");
+            return;
+        }
+
+        if (!session?.access_token) {
+            toast.danger("Debes iniciar sesión con permisos de administrador.");
+            return;
+        }
+
+        setIsAiLoading(true);
+        try {
+            const res = await fetch('/api/admin/autocomplete-ingredient', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
+                body: JSON.stringify({ nombre: queryName })
+            });
+
+            const data = await res.json();
+            if (!res.ok || data.error) {
+                throw new Error(data.error || "No se pudo obtener información con IA.");
+            }
+
+            const aiData = data.data;
+
+            // Autocompletamos los campos del formulario local SIN guardar en la base de datos
+            setFormData(prev => ({
+                ...prev,
+                categoria: normalizeCategory(aiData.categoria || prev.categoria),
+                tipo_medida: ['peso', 'volumen', 'unidad'].includes(aiData.tipo_medida) ? aiData.tipo_medida : (prev.tipo_medida || 'peso'),
+                calorias_por_100g: Number(aiData.calorias_por_100g) || 0,
+                proteinas_por_100g: Number(aiData.proteinas_por_100g) || 0,
+                grasas_por_100g: Number(aiData.grasas_por_100g) || 0,
+                carbohidratos_por_100g: Number(aiData.carbohidratos_por_100g) || 0,
+                fibra_por_100g: Number(aiData.fibra_por_100g) || 0,
+                azucares_por_100g: Number(aiData.azucares_por_100g) || 0,
+                sodio_mg_por_100g: Number(aiData.sodio_mg_por_100g) || 0,
+                peso_por_unidad_gramos: (aiData.peso_por_unidad_gramos !== null && aiData.peso_por_unidad_gramos !== undefined && aiData.peso_por_unidad_gramos !== '') 
+                    ? aiData.peso_por_unidad_gramos 
+                    : '',
+                peso_por_taza_gramos: (aiData.peso_por_taza_gramos !== null && aiData.peso_por_taza_gramos !== undefined && aiData.peso_por_taza_gramos !== '') 
+                    ? aiData.peso_por_taza_gramos 
+                    : '',
+                peso_por_cucharada_gramos: (aiData.peso_por_cucharada_gramos !== null && aiData.peso_por_cucharada_gramos !== undefined && aiData.peso_por_cucharada_gramos !== '') 
+                    ? aiData.peso_por_cucharada_gramos 
+                    : '',
+                es_vegano: Boolean(aiData.es_vegano),
+                es_libre_de_gluten: Boolean(aiData.es_libre_de_gluten)
+            }));
+
+            setLastAutocompletedName(queryName.toLowerCase());
+            setHasAiAutocompleted(true);
+            setAiSuggestionDismissed(true);
+
+            // Mantener el foco firmemente en el campo de texto para que el modal no parpadee
+            if (nameInputRef.current) {
+                nameInputRef.current.focus();
+            }
+        } catch (err) {
+            console.error("Error al autocompletar con IA:", err);
+            toast.danger(err.message || "Error al autocompletar con IA.");
+            if (nameInputRef.current) {
+                nameInputRef.current.focus();
+            }
+        } finally {
+            setIsAiLoading(false);
+        }
+    };
+
+    const showAiSuggestion = useMemo(() => {
+        if (isViewMode) return false;
+        const cleanName = formData.nombre?.trim() || '';
+        if (cleanName.length < 3) return false;
+        if (aiSuggestionDismissed) return false;
+        if (lastAutocompletedName && lastAutocompletedName === cleanName.toLowerCase()) return false;
+        return true;
+    }, [isViewMode, formData.nombre, aiSuggestionDismissed, lastAutocompletedName]);
 
     const unnormalizedCount = useMemo(() => {
         return ingredientes.filter(i => 
@@ -944,18 +1066,166 @@ function IngredientesAdminContent() {
                             {/* General Info */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="col-span-1 md:col-span-2">
-                                    <label className="block text-xs font-bold text-text-muted mb-1.5 uppercase tracking-wide">
-                                        Nombre del Ingrediente
-                                    </label>
-                                    <input 
-                                        type="text"
-                                        autoFocus={!isViewMode}
-                                        readOnly={isViewMode}
-                                        className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all ${isViewMode ? 'opacity-80' : ''}`}
-                                        placeholder="Ej. Palta Hass, Cebolla morada..."
-                                        value={formData.nombre}
-                                        onChange={(e) => setFormData({...formData, nombre: e.target.value})}
-                                    />
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="block text-xs font-bold text-text-muted uppercase tracking-wide">
+                                            Nombre del Ingrediente
+                                        </label>
+                                        {!isViewMode && (
+                                            <button
+                                                type="button"
+                                                disabled={isAiLoading || !formData.nombre?.trim() || formData.nombre.trim().length < 2}
+                                                onClick={() => handleAiAutocomplete()}
+                                                className="text-[11px] font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 transition-colors px-2.5 py-1 rounded-lg hover:bg-amber-500/10 cursor-pointer"
+                                                title="Autocompletar valores nutricionales, categoría y medidas con IA"
+                                            >
+                                                {isAiLoading ? (
+                                                    <>
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                        <span>Consultando IA...</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Wand2 className="w-3.5 h-3.5" />
+                                                        <span>Autocompletar con IA</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="relative">
+                                        <input 
+                                            ref={nameInputRef}
+                                            type="text"
+                                            readOnly={isViewMode}
+                                            className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl px-4 py-3 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all ${isViewMode ? 'opacity-80' : ''}`}
+                                            placeholder="Ej. Palta Hass, Pechuga de pollo, Leche entera..."
+                                            value={formData.nombre}
+                                            onChange={(e) => {
+                                                const newName = e.target.value;
+                                                setFormData({ ...formData, nombre: newName });
+                                                if (lastAutocompletedName && newName.trim().toLowerCase() !== lastAutocompletedName) {
+                                                    setHasAiAutocompleted(false);
+                                                    setAiSuggestionDismissed(false);
+                                                }
+                                            }}
+                                        />
+                                        {isAiLoading && (
+                                            <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-brand-primary">
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Advertencia si ya existe un ingrediente con ese nombre */}
+                                    {(() => {
+                                        const clean = formData.nombre?.trim().toLowerCase();
+                                        if (!clean || clean.length < 2) return null;
+                                        const duplicate = ingredientes.find(i => i.nombre.toLowerCase() === clean && i.id !== formData.id);
+                                        if (!duplicate) return null;
+                                        return (
+                                            <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1 font-medium">
+                                                <TriangleAlert className="w-3.5 h-3.5 shrink-0" />
+                                                Ya existe un ingrediente registrado como "{duplicate.nombre}" en la categoría {duplicate.categoria}.
+                                            </p>
+                                        );
+                                    })()}
+
+                                    {/* Emergente de sugerencia para autocompletar con IA */}
+                                    {showAiSuggestion && (
+                                        <div className="mt-3 p-4 rounded-2xl bg-surface-muted/60 border border-brand-primary/30 shadow-md transition-all duration-200">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="flex items-start gap-3">
+                                                    <div className="w-8 h-8 rounded-xl bg-brand-primary/10 text-brand-primary flex items-center justify-center shrink-0 mt-0.5">
+                                                        <Wand2 className="w-4 h-4" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="text-xs font-bold text-text-main">
+                                                                Sugerencia de Autocompletado IA
+                                                            </p>
+                                                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-brand-primary/15 text-brand-primary">
+                                                                Asistente ChileBite
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[11px] text-text-muted mt-1 leading-relaxed">
+                                                            ¿Deseas autocompletar la categoría oficial, naturaleza de medida, información nutricional y equivalencias para <span className="font-semibold text-text-main">"{formData.nombre.trim()}"</span>?
+                                                        </p>
+                                                        <p className="text-[10px] text-text-muted mt-1 font-medium flex items-center gap-1.5">
+                                                            <Info className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                                            Los datos se cargan en el formulario para su verificación y no se guardan automáticamente.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    disabled={isAiLoading}
+                                                    onClick={() => setAiSuggestionDismissed(true)}
+                                                    className="text-text-muted hover:text-text-main p-1 rounded-lg hover:bg-surface-muted transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+                                                    aria-label="Cerrar sugerencia"
+                                                    title="Cerrar"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+
+                                            <div className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-border-subtle/50">
+                                                <button
+                                                    type="button"
+                                                    disabled={isAiLoading}
+                                                    onClick={() => setAiSuggestionDismissed(true)}
+                                                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-text-muted hover:text-text-main hover:bg-surface-muted transition-colors cursor-pointer disabled:opacity-50"
+                                                >
+                                                    Completar manualmente
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={isAiLoading}
+                                                    onClick={() => handleAiAutocomplete()}
+                                                    className="px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-hover text-white text-xs font-bold shadow-sm flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                                                >
+                                                    {isAiLoading ? (
+                                                        <>
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            <span>Consultando IA...</span>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Wand2 className="w-3.5 h-3.5" />
+                                                            <span>Autocompletar formulario</span>
+                                                        </>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Aviso de confirmación tras autocompletar con IA */}
+                                    {hasAiAutocompleted && (
+                                        <div className="mt-3 p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 transition-all duration-200">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                                                        Formulario autocompletado con IA
+                                                    </p>
+                                                    <p className="text-[11px] text-text-muted">
+                                                        Comprueba los valores a continuación y haz clic en <span className="font-semibold text-text-main">"Guardar Cambios"</span> para almacenarlo.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setHasAiAutocompleted(false)}
+                                                className="text-text-muted hover:text-text-main p-1 rounded-lg hover:bg-surface-muted transition-colors shrink-0 cursor-pointer"
+                                                title="Ocultar aviso"
+                                            >
+                                                <X className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="col-span-1 md:col-span-2">
@@ -1105,8 +1375,8 @@ function IngredientesAdminContent() {
                                                 step="any"
                                                 readOnly={isViewMode} 
                                                 className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl pl-10 pr-3 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                                value={formData.calorias_por_100g || ''} 
-                                                onChange={(e) => setFormData({...formData, calorias_por_100g: parseFloat(e.target.value) || 0})} 
+                                                value={formData.calorias_por_100g ?? ''} 
+                                                onChange={(e) => setFormData({...formData, calorias_por_100g: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                             />
                                         </div>
                                     </div>
@@ -1122,8 +1392,8 @@ function IngredientesAdminContent() {
                                                 step="any"
                                                 readOnly={isViewMode} 
                                                 className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl pl-10 pr-3 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                                value={formData.proteinas_por_100g || ''} 
-                                                onChange={(e) => setFormData({...formData, proteinas_por_100g: parseFloat(e.target.value) || 0})} 
+                                                value={formData.proteinas_por_100g ?? ''} 
+                                                onChange={(e) => setFormData({...formData, proteinas_por_100g: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                             />
                                         </div>
                                     </div>
@@ -1139,8 +1409,8 @@ function IngredientesAdminContent() {
                                                 step="any"
                                                 readOnly={isViewMode} 
                                                 className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl pl-10 pr-3 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                                value={formData.grasas_por_100g || ''} 
-                                                onChange={(e) => setFormData({...formData, grasas_por_100g: parseFloat(e.target.value) || 0})} 
+                                                value={formData.grasas_por_100g ?? ''} 
+                                                onChange={(e) => setFormData({...formData, grasas_por_100g: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                             />
                                         </div>
                                     </div>
@@ -1156,8 +1426,8 @@ function IngredientesAdminContent() {
                                                 step="any"
                                                 readOnly={isViewMode} 
                                                 className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl pl-10 pr-3 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                                value={formData.carbohidratos_por_100g || ''} 
-                                                onChange={(e) => setFormData({...formData, carbohidratos_por_100g: parseFloat(e.target.value) || 0})} 
+                                                value={formData.carbohidratos_por_100g ?? ''} 
+                                                onChange={(e) => setFormData({...formData, carbohidratos_por_100g: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                             />
                                         </div>
                                     </div>
@@ -1173,8 +1443,8 @@ function IngredientesAdminContent() {
                                                 step="any"
                                                 readOnly={isViewMode} 
                                                 className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl pl-10 pr-3 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                                value={formData.fibra_por_100g || ''} 
-                                                onChange={(e) => setFormData({...formData, fibra_por_100g: parseFloat(e.target.value) || 0})} 
+                                                value={formData.fibra_por_100g ?? ''} 
+                                                onChange={(e) => setFormData({...formData, fibra_por_100g: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                             />
                                         </div>
                                     </div>
@@ -1190,8 +1460,8 @@ function IngredientesAdminContent() {
                                                 step="any"
                                                 readOnly={isViewMode} 
                                                 className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl pl-10 pr-3 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                                value={formData.azucares_por_100g || ''} 
-                                                onChange={(e) => setFormData({...formData, azucares_por_100g: parseFloat(e.target.value) || 0})} 
+                                                value={formData.azucares_por_100g ?? ''} 
+                                                onChange={(e) => setFormData({...formData, azucares_por_100g: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                             />
                                         </div>
                                     </div>
@@ -1207,8 +1477,8 @@ function IngredientesAdminContent() {
                                                 step="any"
                                                 readOnly={isViewMode} 
                                                 className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl pl-10 pr-3 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                                value={formData.sodio_mg_por_100g || ''} 
-                                                onChange={(e) => setFormData({...formData, sodio_mg_por_100g: parseFloat(e.target.value) || 0})} 
+                                                value={formData.sodio_mg_por_100g ?? ''} 
+                                                onChange={(e) => setFormData({...formData, sodio_mg_por_100g: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                             />
                                         </div>
                                     </div>
@@ -1241,8 +1511,8 @@ function IngredientesAdminContent() {
                                             readOnly={isViewMode || formData.tipo_medida === 'volumen'} 
                                             placeholder={formData.tipo_medida === 'volumen' ? 'No aplica' : 'Ej. 50'} 
                                             className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode || formData.tipo_medida === 'volumen' ? 'opacity-80' : ''}`} 
-                                            value={formData.peso_por_unidad_gramos || ''} 
-                                            onChange={(e) => setFormData({...formData, peso_por_unidad_gramos: parseFloat(e.target.value) || null})} 
+                                            value={formData.peso_por_unidad_gramos ?? ''} 
+                                            onChange={(e) => setFormData({...formData, peso_por_unidad_gramos: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                         />
                                     </div>
                                     <div>
@@ -1255,8 +1525,8 @@ function IngredientesAdminContent() {
                                             readOnly={isViewMode} 
                                             placeholder={formData.tipo_medida === 'volumen' ? 'Ej. 240' : 'Ej. 200'} 
                                             className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                            value={formData.peso_por_taza_gramos || ''} 
-                                            onChange={(e) => setFormData({...formData, peso_por_taza_gramos: parseFloat(e.target.value) || null})} 
+                                            value={formData.peso_por_taza_gramos ?? ''} 
+                                            onChange={(e) => setFormData({...formData, peso_por_taza_gramos: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                         />
                                     </div>
                                     <div>
@@ -1269,8 +1539,8 @@ function IngredientesAdminContent() {
                                             readOnly={isViewMode} 
                                             placeholder={formData.tipo_medida === 'volumen' ? 'Ej. 15' : 'Ej. 15'} 
                                             className={`w-full bg-surface-input border border-border-subtle text-text-main placeholder:text-text-subtle text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isViewMode ? 'opacity-80' : ''}`} 
-                                            value={formData.peso_por_cucharada_gramos || ''} 
-                                            onChange={(e) => setFormData({...formData, peso_por_cucharada_gramos: parseFloat(e.target.value) || null})} 
+                                            value={formData.peso_por_cucharada_gramos ?? ''} 
+                                            onChange={(e) => setFormData({...formData, peso_por_cucharada_gramos: e.target.value === '' ? '' : (parseFloat(e.target.value) || 0)})} 
                                         />
                                     </div>
                                 </div>

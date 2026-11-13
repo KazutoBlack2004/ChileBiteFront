@@ -59,14 +59,21 @@ export default function CookieConsent() {
         </div>
 
         <p className="text-xs text-zinc-300 leading-relaxed">
-          En ChileBite utilizamos cookies propias y de socios asociados (como{" "}
-          <strong className="text-[#f0a262]">Google AdSense</strong>) para
-          personalizar anuncios, contenido y analizar nuestro tráfico. Conoce más en nuestra{" "}
+          En ChileBite utilizamos cookies esenciales, analíticas y de publicidad (como{" "}
+          <strong className="text-[#f0a262]">Google AdSense</strong>) para optimizar tu experiencia y financiar la plataforma. Además, solicitamos acceso opcional a tu{" "}
+          <strong className="text-emerald-400">geolocalización</strong> de forma privada para calcular distancias a ferias y locales cercanos. Consulta los detalles en nuestra{" "}
           <a
-            href="/privacidad#cookies"
+            href="/privacidad"
             className="text-[#f0a262] underline hover:text-amber-300 transition-colors"
           >
             Política de Privacidad
+          </a>{" "}
+          y{" "}
+          <a
+            href="/terminos"
+            className="text-[#f0a262] underline hover:text-amber-300 transition-colors"
+          >
+            Términos de Uso
           </a>
           .
         </p>

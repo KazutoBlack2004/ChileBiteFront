@@ -40,7 +40,7 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
     optimizeDeps: {
-      include: ['dompurify', '@heroui/react', '@heroui/toast', 'lucide-react', '@supabase/supabase-js'],
+      include: ['dompurify', '@heroui/react', '@heroui/toast', 'lucide-react', '@supabase/supabase-js', 'maplibre-gl', '@blobatar/react'],
     },
   },
 

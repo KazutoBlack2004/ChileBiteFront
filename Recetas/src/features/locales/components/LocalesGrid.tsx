@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { LocaleCard } from './LocaleCard';
-import { locales } from '../data/locales';
+import { locales, type Locale } from '../data/locales';
+import { calculateHaversineDistance, formatDistance } from '../utils/geo';
 
 interface LocalesGridProps {
   selectedCategory: string;
   selectedRegion: string;
   searchQuery?: string;
+  selectedLocaleId?: string | null;
+  onSelectLocale?: (id: string) => void;
+  userLocation?: { lat: number; lng: number } | null;
 }
 
 const ITEMS_PER_PAGE = 9;
@@ -21,7 +25,10 @@ const mapCategoryFilter = (filter: string) => {
 export const LocalesGrid: React.FC<LocalesGridProps> = ({
   selectedCategory,
   selectedRegion,
-  searchQuery = ""
+  searchQuery = "",
+  selectedLocaleId = null,
+  onSelectLocale,
+  userLocation = null,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const sectionRef = useRef<HTMLElement>(null);
@@ -61,23 +68,45 @@ export const LocalesGrid: React.FC<LocalesGridProps> = ({
       const matchProducts = locale.featuredProducts 
         ? locale.featuredProducts.some(p => check(p.name))
         : false;
+      const matchCatalog = locale.catalog
+        ? locale.catalog.some(c => check(c.name))
+        : false;
 
-      searchMatch = matchName || matchDesc || matchCommune || matchTags || matchStall || matchProducts;
+      searchMatch = matchName || matchDesc || matchCommune || matchTags || matchStall || matchProducts || matchCatalog;
     }
 
     return categoryMatch && regionMatch && searchMatch;
   });
 
-  // Parse distance string e.g. "1.2 km" into a numeric value
+  // Helper to parse fallback distance string e.g. "1.2 km"
   const parseDistance = (distStr: string): number => {
     const match = distStr.match(/([\d.]+)/);
     return match ? parseFloat(match[1]) : 9999;
   };
 
-  // Sort by nearest distance first
-  const sortedLocales = [...filteredLocales].sort((a, b) => {
-    return parseDistance(a.distance) - parseDistance(b.distance);
+  // Compute distance for each locale (either real Haversine or fallback)
+  const getLocaleDistanceKm = (locale: Locale): number => {
+    if (userLocation) {
+      return calculateHaversineDistance(
+        userLocation.lat,
+        userLocation.lng,
+        locale.lat,
+        locale.lng
+      );
+    }
+    return parseDistance(locale.distance);
+  };
+
+  // Sort by nearest distance first and filter to user's reach (<= 35 km) when GPS is active
+  const allSortedLocales = [...filteredLocales].sort((a, b) => {
+    return getLocaleDistanceKm(a) - getLocaleDistanceKm(b);
   });
+
+  const nearbyFiltered = userLocation && selectedRegion === "Todas"
+    ? allSortedLocales.filter(l => getLocaleDistanceKm(l) <= 35)
+    : allSortedLocales;
+
+  const sortedLocales = nearbyFiltered.length > 0 ? nearbyFiltered : allSortedLocales;
 
   const totalPages = Math.ceil(sortedLocales.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -118,7 +147,9 @@ export const LocalesGrid: React.FC<LocalesGridProps> = ({
           </h2>
           <p className="mt-2 text-zinc-600 dark:text-zinc-400 text-sm md:text-base">
             {cleanQuery ? (
-              <span>Mostrando puestos con <strong className="text-emerald-400 font-semibold">{searchQuery}</strong> ordenados por mayor cercanía a tu ubicación.</span>
+              <span>Mostrando puestos con <strong className="text-emerald-500 font-semibold">{searchQuery}</strong> ordenados por mayor cercanía a tu ubicación.</span>
+            ) : userLocation ? (
+              <span>Ordenados en tiempo real según tu <strong className="text-emerald-500 font-semibold">ubicación GPS actual</strong>.</span>
             ) : (
               <span>Productos frescos de estación, ofertas del día y contacto directo con feriantes y productores locales.</span>
             )}
@@ -143,12 +174,24 @@ export const LocalesGrid: React.FC<LocalesGridProps> = ({
       ) : (
         <>
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {paginatedLocales.map((locale) => (
-              <LocaleCard key={locale.id} locale={locale} />
-            ))}
+            {paginatedLocales.map((locale) => {
+              const formattedUserDist = userLocation
+                ? formatDistance(calculateHaversineDistance(userLocation.lat, userLocation.lng, locale.lat, locale.lng))
+                : null;
+
+              return (
+                <LocaleCard
+                  key={locale.id}
+                  locale={locale}
+                  isSelected={selectedLocaleId === locale.id}
+                  onSelectOnMap={() => onSelectLocale?.(locale.id)}
+                  userDistance={formattedUserDist}
+                />
+              );
+            })}
           </div>
 
-          {/* Paginación con diseño de la galería adaptada a tonos verdes */}
+          {/* Paginación */}
           {totalPages > 1 && (
             <div className="mt-12 flex justify-center items-center gap-1 sm:gap-2 mb-8 select-none">
               {/* Botón Anterior */}
@@ -165,7 +208,7 @@ export const LocalesGrid: React.FC<LocalesGridProps> = ({
                 <span className="hidden sm:inline">Anterior</span>
               </button>
 
-              {/* Primera página + elipsis si es necesario */}
+              {/* Primera página + elipsis */}
               {getPaginationGroup()[0] > 1 && (
                 <>
                   <button 
@@ -201,7 +244,7 @@ export const LocalesGrid: React.FC<LocalesGridProps> = ({
                 );
               })}
 
-              {/* Última página + elipsis si es necesario */}
+              {/* Última página + elipsis */}
               {getPaginationGroup()[getPaginationGroup().length - 1] < totalPages && (
                 <>
                   {getPaginationGroup()[getPaginationGroup().length - 1] < totalPages - 1 && <span className="text-zinc-400 dark:text-zinc-500 font-medium px-1">…</span>}

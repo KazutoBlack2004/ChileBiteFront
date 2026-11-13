@@ -50,17 +50,18 @@ export const LocalesHero: React.FC<LocalesHeroProps> = ({ searchQuery = "", setS
     // 1. Fresh products and ingredients from stalls
     locales.forEach(loc => {
       loc.featuredProducts?.forEach(p => add(p.name));
+      loc.tags?.forEach(t => add(t));
     });
 
     // 2. Ingredientes populares de ferias libres chilenas (nombres cotidianos)
     const freshMarketIngredients = [
-      "Tomate", "Palta", "Choclo", "Cebolla", "Papas", "Zanahoria", "Lechuga", 
-      "Limón", "Acelga", "Espinaca", "Zapallo", "Pimentón", "Ajo", "Cilantro", 
-      "Perejil", "Albahaca", "Frutillas", "Melón", "Sandía", "Plátano", "Manzana", 
-      "Naranja", "Arándanos", "Reineta", "Merluza", "Congrio", "Sierra", 
-      "Choritos", "Machas", "Almejas", "Ostiones", "Camarones", "Huevos", 
-      "Porotos", "Lentejas", "Garbanzos", "Nueces", "Almendras", "Maní", 
-      "Castañas de Cajú", "Harina Tostada", "Merkén", "Queso Chanco", "Queso Mantecoso", 
+      "Tomate", "Palta", "Choclo", "Cebolla", "Papas", "Zanahoria", "Lechuga",
+      "Limón", "Acelga", "Espinaca", "Zapallo", "Pimentón", "Ajo", "Cilantro",
+      "Perejil", "Albahaca", "Frutillas", "Melón", "Sandía", "Plátano", "Manzana",
+      "Naranja", "Arándanos", "Reineta", "Merluza", "Congrio", "Sierra",
+      "Choritos", "Machas", "Almejas", "Ostiones", "Camarones", "Huevos",
+      "Porotos", "Lentejas", "Garbanzos", "Nueces", "Almendras", "Maní",
+      "Castañas de Cajú", "Harina Tostada", "Merkén", "Queso Chanco", "Queso Mantecoso",
       "Queso de Cabra", "Quesillo", "Mantequilla", "Manjar", "Piñones", "Ají"
     ];
     freshMarketIngredients.forEach(add);
@@ -76,6 +77,12 @@ export const LocalesHero: React.FC<LocalesHeroProps> = ({ searchQuery = "", setS
     if (!q || q.length < 1) return [];
     return allIngredients
       .filter(name => normalize(name).includes(q))
+      .sort((a, b) => {
+        const aStarts = normalize(a).startsWith(q) ? 0 : 1;
+        const bStarts = normalize(b).startsWith(q) ? 0 : 1;
+        if (aStarts !== bStarts) return aStarts - bStarts;
+        return a.localeCompare(b, 'es');
+      })
       .slice(0, 8);
   }, [inputValue, allIngredients]);
 
@@ -114,7 +121,7 @@ export const LocalesHero: React.FC<LocalesHeroProps> = ({ searchQuery = "", setS
     } else if (e.key === "Enter") {
       if (activeIndex >= 0 && suggestions[activeIndex]) {
         e.preventDefault();
-        handleSelect(suggestions[activeIndex].name);
+        handleSelect(suggestions[activeIndex]);
       } else {
         setIsOpen(false);
       }
@@ -141,7 +148,7 @@ export const LocalesHero: React.FC<LocalesHeroProps> = ({ searchQuery = "", setS
   const showDropdown = isOpen && suggestions.length > 0;
 
   return (
-    <section className="relative z-20 flex min-h-[55vh] items-center justify-center overflow-visible bg-zinc-950 py-16 px-6 border-b border-zinc-900 transition-colors">
+    <section className="relative z-40 flex min-h-[55vh] items-center justify-center overflow-visible bg-zinc-950 py-16 px-6 border-b border-zinc-900 transition-colors">
       {/* Background Image with Dark Atmospheric Overlay */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <img
@@ -152,7 +159,7 @@ export const LocalesHero: React.FC<LocalesHeroProps> = ({ searchQuery = "", setS
         <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/85 via-zinc-950/50 to-zinc-950" />
       </div>
 
-      <div className="relative z-20 mx-auto max-w-4xl text-center w-full">
+      <div className="relative z-30 mx-auto max-w-4xl text-center w-full">
         <h1 className="mb-5 font-serif text-4xl font-extrabold leading-tight text-white md:text-6xl">
           Encuentra tu Casero y los <br />
           <span className="bg-gradient-to-r from-emerald-400 via-amber-300 to-orange-400 bg-clip-text text-transparent">
@@ -165,7 +172,7 @@ export const LocalesHero: React.FC<LocalesHeroProps> = ({ searchQuery = "", setS
         </p>
 
         {/* Autocomplete Search Container */}
-        <div ref={containerRef} className="relative z-20 mx-auto max-w-2xl w-full">
+        <div ref={containerRef} className="relative z-50 mx-auto max-w-2xl w-full">
           <div className="relative rounded-full border border-white/15 bg-white/10 p-1 backdrop-blur-2xl transition-all duration-300 focus-within:bg-zinc-900/90 focus-within:border-brand-primary focus-within:ring-2 focus-within:ring-brand-primary/30 shadow-2xl flex items-center">
             <Search className="ml-4 size-5 text-zinc-400 shrink-0 pointer-events-none" />
             <input
@@ -195,9 +202,9 @@ export const LocalesHero: React.FC<LocalesHeroProps> = ({ searchQuery = "", setS
 
           {/* Autocomplete Suggestions Popover */}
           {showDropdown && (
-            <div 
+            <div
               role="listbox"
-              className="absolute top-[calc(100%+8px)] left-0 right-0 z-[100] rounded-2xl bg-zinc-900/95 border border-zinc-800 shadow-2xl backdrop-blur-2xl overflow-hidden text-left animate-in fade-in slide-in-from-top-1 duration-150"
+              className="absolute top-[calc(100%+8px)] left-0 right-0 z-[100] rounded-2xl bg-zinc-900 border border-zinc-700/80 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] overflow-hidden text-left animate-in fade-in slide-in-from-top-1 duration-150"
             >
               <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between text-zinc-400 text-xs font-semibold uppercase tracking-wider">
                 <span className="flex items-center gap-1.5">
@@ -220,11 +227,10 @@ export const LocalesHero: React.FC<LocalesHeroProps> = ({ searchQuery = "", setS
                       handleSelect(ingredient);
                     }}
                     onMouseEnter={() => setActiveIndex(idx)}
-                    className={`flex items-center justify-between px-4 py-2.5 cursor-pointer transition-colors text-sm ${
-                      idx === activeIndex
-                        ? "bg-zinc-800 text-white font-semibold"
-                        : "text-zinc-300 hover:bg-zinc-800/70 hover:text-white"
-                    }`}
+                    className={`flex items-center justify-between px-4 py-2.5 cursor-pointer transition-colors text-sm ${idx === activeIndex
+                      ? "bg-zinc-800 text-white font-semibold"
+                      : "text-zinc-300 hover:bg-zinc-800/70 hover:text-white"
+                      }`}
                   >
                     <div className="flex items-center gap-3 min-w-0 pr-3">
                       <div className="size-7 rounded-lg flex items-center justify-center shrink-0 bg-amber-400/10 text-amber-400">

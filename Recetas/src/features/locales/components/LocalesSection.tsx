@@ -1,16 +1,108 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { LocalesHero } from './LocalesHero';
 import { LocalesFilter } from './LocalesFilter';
 import { LocalesGrid } from './LocalesGrid';
 import { LocalesMapPreview } from './LocalesMapPreview';
+import { getSavedUserLocationSession, saveUserLocationSession } from '../utils/geo';
 
 export const LocalesSection: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState("Todos");
   const [selectedRegion, setSelectedRegion] = useState("Todas");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('q') || "";
+    }
+    return "";
+  });
+  const [selectedLocaleId, setSelectedLocaleId] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(() =>
+    getSavedUserLocationSession()
+  );
+  const [isReady, setIsReady] = useState(false);
+
+  const mapSectionRef = useRef<HTMLDivElement>(null);
+
+  // Persistir coordenadas cuando cambien y recuperar GPS si ya hay consentimiento
+  const handleUpdateUserLocation = (loc: { lat: number; lng: number } | null) => {
+    setUserLocation(loc);
+    if (loc) {
+      saveUserLocationSession(loc);
+    }
+  };
+
+  useEffect(() => {
+    const handleLocationEvent = (e: any) => {
+      setUserLocation(e?.detail || null);
+    };
+    window.addEventListener('chilebite:location-changed', handleLocationEvent);
+
+    try {
+      const saved = getSavedUserLocationSession();
+      if (saved) {
+        setUserLocation(saved);
+        setIsReady(true);
+      } else {
+        const params = new URLSearchParams(window.location.search);
+        const wantsNear = params.get('near') === '1';
+        const hasConsent = localStorage.getItem('chilebite_geo_consent') === 'accepted';
+        if ((wantsNear || hasConsent) && 'geolocation' in navigator) {
+          const timer = setTimeout(() => setIsReady(true), 450);
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              clearTimeout(timer);
+              const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+              setUserLocation(coords);
+              saveUserLocationSession(coords);
+              setIsReady(true);
+            },
+            () => {
+              clearTimeout(timer);
+              setIsReady(true);
+            },
+            { timeout: 6000, enableHighAccuracy: true }
+          );
+        } else {
+          setIsReady(true);
+        }
+      }
+    } catch {
+      setIsReady(true);
+    }
+
+    return () => window.removeEventListener('chilebite:location-changed', handleLocationEvent);
+  }, []);
+
+  // When a user clicks "Ubicar en mapa" from a card, set the active local and scroll to the map
+  const handleSelectLocaleFromGrid = (localeId: string) => {
+    setSelectedLocaleId(localeId);
+    if (mapSectionRef.current) {
+      mapSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  };
+
+  if (!isReady) {
+    return (
+      <div className="w-full min-h-screen bg-bg-page animate-pulse">
+        <div className="h-[55vh] w-full bg-zinc-900/90 flex flex-col items-center justify-center px-6 space-y-5">
+          <div className="h-12 w-3/4 max-w-xl rounded-2xl bg-zinc-800" />
+          <div className="h-5 w-2/3 max-w-md rounded-xl bg-zinc-800" />
+          <div className="h-14 w-full max-w-2xl rounded-full bg-zinc-800" />
+        </div>
+        <div className="max-w-7xl mx-auto px-6 py-10 space-y-8">
+          <div className="h-12 w-full rounded-full bg-surface-muted dark:bg-zinc-800" />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="h-80 rounded-2xl bg-surface-muted dark:bg-zinc-800" />
+            <div className="h-80 rounded-2xl bg-surface-muted dark:bg-zinc-800" />
+            <div className="h-80 rounded-2xl bg-surface-muted dark:bg-zinc-800" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-bg-page min-h-screen w-full max-w-full overflow-x-clip transition-colors">
+    <div className="bg-bg-page min-h-screen w-full max-w-full overflow-x-clip transition-colors animate-in fade-in duration-300">
       <LocalesHero 
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
@@ -25,11 +117,24 @@ export const LocalesSection: React.FC = () => {
         selectedCategory={selectedCategory}
         selectedRegion={selectedRegion}
         searchQuery={searchQuery}
+        selectedLocaleId={selectedLocaleId}
+        onSelectLocale={handleSelectLocaleFromGrid}
+        userLocation={userLocation}
       />
-      <LocalesMapPreview 
-        selectedRegion={selectedRegion}
-        setSelectedRegion={setSelectedRegion}
-      />
+      
+      {/* Interactive Vector Map Anchor */}
+      <div ref={mapSectionRef}>
+        <LocalesMapPreview 
+          selectedRegion={selectedRegion}
+          setSelectedRegion={setSelectedRegion}
+          selectedCategory={selectedCategory}
+          searchQuery={searchQuery}
+          selectedLocaleId={selectedLocaleId}
+          setSelectedLocaleId={setSelectedLocaleId}
+          userLocation={userLocation}
+          setUserLocation={handleUpdateUserLocation}
+        />
+      </div>
       
       {/* Banner de Suscripción para Feriantes y Locales de Barrio */}
       <section className="relative overflow-hidden bg-gradient-to-br from-emerald-950 via-zinc-950 to-zinc-900 py-20 px-6 text-white border-t border-emerald-900/40">
@@ -64,7 +169,7 @@ export const LocalesSection: React.FC = () => {
             </div>
 
             <div className="w-full lg:w-auto shrink-0 bg-white/10 dark:bg-zinc-900/90 border border-emerald-500/30 p-8 rounded-3xl shadow-2xl backdrop-blur-xl text-center max-w-sm">
-              <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Plan Feriante Pro</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">Suscripción Feriante</span>
               <div className="mt-2 mb-4">
                 <span className="text-4xl font-black text-white">$9.990</span>
                 <span className="text-zinc-400 text-sm"> / mes</span>

@@ -1,24 +1,39 @@
 import React from 'react';
 import { Card, Chip } from '@heroui/react';
-import { MapPin, ExternalLink } from 'lucide-react';
+import { MapPin, ExternalLink, Navigation } from 'lucide-react';
 import type { Locale } from '../data/locales';
 
 interface LocaleCardProps {
   locale: Locale;
+  isSelected?: boolean;
+  onSelectOnMap?: () => void;
+  userDistance?: string | null;
 }
 
-export const LocaleCard: React.FC<LocaleCardProps> = ({ locale }) => {
+export const LocaleCard: React.FC<LocaleCardProps> = ({
+  locale,
+  isSelected = false,
+  onSelectOnMap,
+  userDistance,
+}) => {
   const storeUrl = `/marketplace/${locale.id}`;
-  const fullAddress = locale.address 
-    ? `${locale.address}, ${locale.commune || locale.region}` 
+  const fullAddress = locale.address
+    ? `${locale.address}, ${locale.commune || locale.region}`
     : `${locale.commune || ''}, ${locale.region}`;
 
+  const displayDistance = userDistance || locale.distance;
+
   return (
-    <Card className="group relative flex flex-col overflow-hidden rounded-2xl mp-card transition-all duration-500 hover:-translate-y-1.5 hover:shadow-xl">
-      {/* Clickable Image Container: Solo la foto */}
-      <a 
+    <Card
+      className={`group relative flex flex-col overflow-hidden rounded-2xl mp-card transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl ${isSelected
+          ? 'ring-2 ring-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/10'
+          : ''
+        }`}
+    >
+      {/* Clickable Image Container */}
+      <a
         href={storeUrl}
-        target="_blank" 
+        target="_blank"
         rel="noopener noreferrer"
         aria-label={`Ver catálogo de ${locale.name}`}
         className="relative block aspect-[16/10] overflow-hidden mp-input"
@@ -44,12 +59,17 @@ export const LocaleCard: React.FC<LocaleCardProps> = ({ locale }) => {
           </a>
         </Card.Title>
 
-        {/* Green exact physical address */}
-        <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+        {/* Physical Address (clickable to focus on map) */}
+        <button
+          type="button"
+          onClick={onSelectOnMap}
+          className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline text-left cursor-pointer transition-colors"
+          title="Ver ubicación en el mapa"
+        >
           <MapPin className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
           <span className="line-clamp-1">{fullAddress}</span>
-        </div>
-        
+        </button>
+
         {/* Description */}
         <Card.Description className="line-clamp-2 text-xs leading-relaxed mp-text-muted mt-0.5">
           {locale.description}
@@ -69,25 +89,39 @@ export const LocaleCard: React.FC<LocaleCardProps> = ({ locale }) => {
         </div>
       </Card.Content>
 
-      {/* Footer with Distance & View Catalog Button (opens in new tab) */}
+      {/* Footer with Distance, Locate Button & View Catalog Button */}
       <Card.Footer className="border-t mp-border p-4 px-5 flex items-center justify-between gap-2">
-        {/* Distance kept as requested */}
+        {/* Distance */}
         <div className="flex items-center gap-1 text-xs mp-text-muted font-medium">
-          <MapPin className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span>A {locale.distance}</span>
+          <Navigation className="size-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span>A {displayDistance}</span>
         </div>
 
-        {/* Open catalog in new tab button */}
-        <a
-          href={storeUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all shadow-sm hover:shadow active:scale-95"
-          aria-label={`Abrir catálogo de ${locale.name} en una nueva pestaña`}
-        >
-          <span>Ver catálogo</span>
-          <ExternalLink className="size-3" />
-        </a>
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          {onSelectOnMap && (
+            <button
+              type="button"
+              onClick={onSelectOnMap}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold mp-button hover:border-emerald-600 dark:hover:border-emerald-500 transition-all cursor-pointer shadow-xs active:scale-95"
+              title="Centrar y ver en el mapa interactivo"
+            >
+              <MapPin className="size-3 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline">Ubicar</span>
+            </button>
+          )}
+
+          <a
+            href={storeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-all shadow-sm hover:shadow active:scale-95"
+            aria-label={`Abrir catálogo de ${locale.name} en una nueva pestaña`}
+          >
+            <span>Ver catálogo</span>
+            <ExternalLink className="size-3" />
+          </a>
+        </div>
       </Card.Footer>
     </Card>
   );

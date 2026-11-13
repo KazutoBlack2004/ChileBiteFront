@@ -11,6 +11,7 @@ import {
   Tag
 } from 'lucide-react';
 import type { Locale, CatalogProduct } from '../data/locales';
+import { SellerLocationMap } from './SellerLocationMap';
 
 interface SellerCatalogViewProps {
   locale: Locale;
@@ -81,7 +82,7 @@ export const SellerCatalogView: React.FC<SellerCatalogViewProps> = ({ locale }) 
     : `${locale.commune || ''}, ${locale.region}`;
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8 animate-in fade-in duration-300">
       {/* Top Nav Bar */}
       <div className="flex items-center justify-between">
         <a 
@@ -334,6 +335,9 @@ export const SellerCatalogView: React.FC<SellerCatalogViewProps> = ({ locale }) 
           </button>
         </div>
       )}
+
+      {/* Interactive Map & Nearby Locales Section */}
+      <SellerLocationMap currentLocale={locale} />
     </div>
   );
 };

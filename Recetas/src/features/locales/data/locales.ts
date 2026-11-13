@@ -44,7 +44,6 @@ export interface Locale {
   lng: number;
   isFeatured?: boolean;
   isCertified?: boolean;
-  isProSubscription?: boolean;
   whatsappNumber?: string;
   stallNumber?: string;
   featuredProducts?: FreshProduct[];
@@ -72,7 +71,6 @@ export const locales: Locale[] = [
     lat: -33.4290,
     lng: -70.6515,
     isFeatured: true,
-    isProSubscription: true,
     stallNumber: "Sector Chacareros - Puesto 142",
     whatsappNumber: "+56991234567",
     featuredProducts: [
@@ -109,7 +107,6 @@ export const locales: Locale[] = [
     lat: -33.4840,
     lng: -70.6780,
     isFeatured: true,
-    isProSubscription: true,
     stallNumber: "Patio Las Hortalizas - Local 58",
     whatsappNumber: "+56987654321",
     featuredProducts: [
@@ -144,7 +141,6 @@ export const locales: Locale[] = [
     paymentMethods: ["Efectivo", "Redcompra / Débito", "Crédito", "Transferencia"],
     lat: -33.4285,
     lng: -70.6125,
-    isProSubscription: true,
     whatsappNumber: "+56976543219",
     featuredProducts: [
       { name: "Albahaca", price: 990, unit: "atado" },
@@ -179,7 +175,6 @@ export const locales: Locale[] = [
     lat: -33.5180,
     lng: -70.6850,
     isFeatured: true,
-    isProSubscription: true,
     stallNumber: "Sector Minorista - Pasillo Central 12",
     whatsappNumber: "+56994443322",
     featuredProducts: [
@@ -213,7 +208,6 @@ export const locales: Locale[] = [
     paymentMethods: ["Efectivo", "Redcompra / Débito"],
     lat: -33.0370,
     lng: -71.5930,
-    isProSubscription: true,
     stallNumber: "Box de Venta 7",
     whatsappNumber: "+56981112233",
     featuredProducts: [
@@ -247,7 +241,6 @@ export const locales: Locale[] = [
     lat: -33.4380,
     lng: -70.6550,
     isFeatured: true,
-    isProSubscription: true,
     stallNumber: "Local Tradicional - San Pablo",
     whatsappNumber: "+56972223344",
     featuredProducts: [
@@ -281,7 +274,6 @@ export const locales: Locale[] = [
     paymentMethods: ["Efectivo", "Redcompra / Débito", "Transferencia"],
     lat: -33.4305,
     lng: -70.6490,
-    isProSubscription: true,
     whatsappNumber: "+56965554433",
     featuredProducts: [
       { name: "Maní", price: 2990, unit: "kg" },
@@ -314,7 +306,6 @@ export const locales: Locale[] = [
     lat: -33.4735,
     lng: -70.6480,
     isFeatured: true,
-    isProSubscription: true,
     stallNumber: "Galpón Matadero - Local 104",
     whatsappNumber: "+56983332211",
     featuredProducts: [
@@ -347,7 +338,6 @@ export const locales: Locale[] = [
     paymentMethods: ["Efectivo", "Redcompra / Débito", "Crédito"],
     lat: -33.4540,
     lng: -70.6010,
-    isProSubscription: true,
     whatsappNumber: "+56974445566",
     featuredProducts: [
       { name: "Quesillo", price: 2990, unit: "unidad" },
@@ -377,7 +367,6 @@ export const locales: Locale[] = [
     lat: -29.9533,
     lng: -71.3436,
     isFeatured: true,
-    isProSubscription: true,
     stallNumber: "Puesto 18 - Sector Desembarco",
     whatsappNumber: "+56951234567",
     featuredProducts: [
@@ -408,7 +397,6 @@ export const locales: Locale[] = [
     lat: -38.7359,
     lng: -72.5850,
     isFeatured: true,
-    isProSubscription: true,
     stallNumber: "Bandjón 2 - Puesto 45",
     whatsappNumber: "+56945678901",
     featuredProducts: [
@@ -440,7 +428,6 @@ export const locales: Locale[] = [
     paymentMethods: ["Efectivo", "Redcompra / Débito", "Transferencia"],
     lat: -41.4815,
     lng: -72.9682,
-    isProSubscription: true,
     stallNumber: "Pasillo Artesanal 33",
     whatsappNumber: "+56965432198",
     featuredProducts: [
@@ -452,6 +439,213 @@ export const locales: Locale[] = [
       { id: "qa2", name: "Mantequilla de Campo Salada", category: "Lácteos", price: 7990, unit: "kg", inStock: true, description: "Elaborada con sal de mar de Cáhuil y nata fresca." },
       { id: "qa3", name: "Salmón Ahumado en Caliente", category: "Ahumados", price: 14500, unit: "kg", inStock: true, description: "Receta ancestral chilota con maderas nobles nativas." },
       { id: "qa4", name: "Queso Mantecoso de Osorno", category: "Quesos", price: 8900, unit: "kg", inStock: true, description: "Pura leche de praderas osorninas, cremosidad insuperable." }
+    ]
+  },
+
+  // ================= O'HIGGINS — ZONA LAS CABRAS / RAPEL =================
+  {
+    id: "v-lascabras",
+    name: "Feria Libre Nueva Esperanza - Las Cabras",
+    description: "Feria campesina tradicional con hortalizas frescas del valle del Cachapoal. Tomates, cebollas, papas, ajos, zapallos y frutas de temporada directo del productor.",
+    image: "https://images.unsplash.com/photo-1488459716781-31db52582fe9?auto=format&fit=crop&q=80&w=800",
+    rating: 4.7,
+    distance: "0.6 km",
+    category: "Verdulería",
+    tags: ["Tomate", "Cebolla", "Zapallo", "Papas", "Zanahoria", "Ajo", "Pimentón", "Limón", "Cilantro", "Perejil", "Lechuga", "Espinaca", "Acelga", "Sandía", "Choclo"],
+    region: "O'Higgins",
+    commune: "Las Cabras",
+    address: "Av. Estadio s/n, Las Cabras",
+    hours: "Miércoles y Sábado: 08:00 - 14:00 hrs",
+    paymentMethods: ["Efectivo", "Transferencia bancaria"],
+    lat: -34.2870,
+    lng: -71.3050,
+    isFeatured: true,
+    stallNumber: "Sector Hortalizas - Puesto 12",
+    whatsappNumber: "+56932145678",
+    featuredProducts: [
+      { name: "Tomate Limachino", price: 1290, unit: "kg" },
+      { name: "Cebolla Blanca", price: 890, unit: "kg" },
+      { name: "Zapallo Camote", price: 990, unit: "kg" },
+      { name: "Papas de Campo", price: 1190, unit: "kg" }
+    ],
+    catalog: [
+      { id: "lc1", name: "Tomate Limachino Fresco", category: "Verduras", price: 1290, unit: "kg", inStock: true, description: "Cosecha local del valle del Cachapoal, sabor intenso." },
+      { id: "lc2", name: "Cebolla Blanca de Guarda", category: "Verduras", price: 890, unit: "kg", inStock: true, description: "Malla seleccionada, firme y dulce para ensaladas y sofritos." },
+      { id: "lc3", name: "Zapallo Camote Corte Fresco", category: "Verduras", price: 990, unit: "kg", inStock: true, description: "Ideal para sopaipillas, cazuelas, charquicán y puré." },
+      { id: "lc4", name: "Papas Cardinal Seleccionadas", category: "Tubérculos", price: 1190, unit: "kg", inStock: true, description: "Papas firmes de guarda cosechadas en la zona central." },
+      { id: "lc5", name: "Choclo Tempranero", category: "Verduras", price: 500, unit: "unidad", inStock: true, description: "Granos tiernos perfectos para humitas y pastel de choclo." },
+      { id: "lc6", name: "Zanahoria Fresca de Huerto", category: "Verduras", price: 850, unit: "kg", inStock: true, description: "Dulce y crujiente para ensaladas y sofritos." },
+      { id: "lc7", name: "Ajo Rosado Chileno", category: "Verduras", price: 600, unit: "4 cabezas", inStock: true, description: "Ajo de guarda muy aromático de productores locales." },
+      { id: "lc8", name: "Pimentón Rojo y Verde", category: "Verduras", price: 500, unit: "unidad", inStock: true, description: "Frescos y carnosos para pino, sofritos y ensaladas." },
+      { id: "lc9", name: "Limón de Huerto", category: "Cítricos", price: 1190, unit: "kg", inStock: true, description: "Abundante jugo para aliños, pebre y ceviches." },
+      { id: "lc10", name: "Cilantro y Perejil Fresco", category: "Hierbas", price: 500, unit: "atado", inStock: true, description: "Atados recién cortados cada mañana de feria." },
+      { id: "lc11", name: "Lechuga Costina y Escarola", category: "Hojas Verdes", price: 900, unit: "unidad", inStock: true, description: "Hojas frescas y crujientes del día." },
+      { id: "lc12", name: "Sandía del Valle de Rapel", category: "Frutas", price: 3500, unit: "unidad", inStock: true, description: "Dulce y jugosa, madurada al sol del secano interior." }
+    ]
+  },
+  {
+    id: "q-lascabras",
+    name: "Quesería Artesanal Doña Rosa - Las Cabras",
+    description: "Quesillos frescos, queso chanco, mantecoso y mantequilla elaborados con leche de praderas de la zona de Rapel. Tradición quesera campesina de O'Higgins.",
+    image: "https://images.unsplash.com/photo-1559561853-08451507cbe7?auto=format&fit=crop&q=80&w=800",
+    rating: 4.8,
+    distance: "1.2 km",
+    category: "Quesería y Lácteos",
+    tags: ["Quesillo", "Queso de Campo", "Queso Chanco", "Queso Mantecoso", "Queso de Cabra", "Mantequilla", "Manjar", "Leche", "Crema", "Yogurt"],
+    region: "O'Higgins",
+    commune: "Las Cabras",
+    address: "Calle Comercio 340, Las Cabras",
+    hours: "Lunes a Sábado: 09:00 - 18:00 hrs",
+    paymentMethods: ["Efectivo", "Transferencia bancaria"],
+    lat: -34.2900,
+    lng: -71.3120,
+    stallNumber: "Local Frente a la Plaza",
+    whatsappNumber: "+56941236789",
+    featuredProducts: [
+      { name: "Quesillo Fresco", price: 2500, unit: "unidad" },
+      { name: "Queso de Campo", price: 7990, unit: "kg" },
+      { name: "Mantequilla Artesanal", price: 6990, unit: "kg" },
+      { name: "Manjar de Campo", price: 4500, unit: "kg" }
+    ],
+    catalog: [
+      { id: "qlc1", name: "Quesillo Fresco del Día", category: "Quesos Frescos", price: 2500, unit: "unidad", inStock: true, description: "Elaborado cada mañana con leche fresca de vacas del fundo." },
+      { id: "qlc2", name: "Queso Chanco de Campo Madurado", category: "Quesos", price: 7990, unit: "kg", inStock: true, description: "Maduración natural de 30 días, sabor suave y cremoso." },
+      { id: "qlc3", name: "Queso Mantecoso Fundente", category: "Quesos", price: 8490, unit: "kg", inStock: true, description: "Ideal para empanadas de queso, lasañas y gratinados." },
+      { id: "qlc4", name: "Mantequilla de Campo sin Sal", category: "Lácteos", price: 6990, unit: "kg", inStock: true, description: "Batida a mano con crema fresca de la zona." },
+      { id: "qlc5", name: "Queso de Cabra con Orégano", category: "Quesos", price: 10900, unit: "kg", inStock: true, description: "Leche de cabra del secano costero con orégano silvestre." },
+      { id: "qlc6", name: "Manjar Casero de Olla", category: "Dulces y Derivados", price: 4500, unit: "kg", inStock: true, description: "Receta tradicional para alfajores, tortas y panqueques." },
+      { id: "qlc7", name: "Crema de Leche Espesa", category: "Lácteos", price: 3990, unit: "kg", inStock: true, description: "Crema natural para salsas, postres y repostería." }
+    ]
+  },
+  {
+    id: "t-rapel",
+    name: "Tostaduría y Frutos Secos El Arriero - Peumo",
+    description: "Nueces de nogal del valle, almendras tostadas al día, harina tostada, especias y legumbres secas seleccionadas de la zona de Rapel y Peumo.",
+    image: "https://images.unsplash.com/photo-1536510233921-8e5043fce771?auto=format&fit=crop&q=80&w=800",
+    rating: 4.6,
+    distance: "8.5 km",
+    category: "Tostadurías y Frutos Secos",
+    tags: ["Nueces", "Almendras", "Maní", "Porotos", "Lentejas", "Garbanzos", "Harina Tostada", "Harina", "Arroz", "Merkén", "Orégano", "Ají", "Comino"],
+    region: "O'Higgins",
+    commune: "Peumo",
+    address: "Calle Independencia 215, Peumo",
+    hours: "Lunes a Sábado: 09:30 - 19:00 hrs",
+    paymentMethods: ["Efectivo", "Transferencia bancaria"],
+    lat: -34.3960,
+    lng: -71.1370,
+    whatsappNumber: "+56953217890",
+    featuredProducts: [
+      { name: "Nueces del Valle", price: 6990, unit: "kg" },
+      { name: "Almendras Tostadas", price: 7990, unit: "kg" },
+      { name: "Porotos Tórtola", price: 2290, unit: "kg" },
+      { name: "Harina Tostada", price: 1790, unit: "kg" }
+    ],
+    catalog: [
+      { id: "tr1", name: "Nueces Mariposa del Cachapoal", category: "Frutos Secos", price: 6990, unit: "kg", inStock: true, description: "Cosecha de nogales centenarios del valle, claras y crujientes." },
+      { id: "tr2", name: "Almendras Tostadas sin Sal", category: "Frutos Secos", price: 7990, unit: "kg", inStock: true, description: "Tostadas artesanalmente en paila de cobre." },
+      { id: "tr3", name: "Porotos Tórtola y Burros de Secano", category: "Legumbres", price: 2290, unit: "kg", inStock: true, description: "Grano entero de piel fina, cocción suave y homogénea." },
+      { id: "tr4", name: "Lentejas y Garbanzos Seleccionados", category: "Legumbres", price: 1790, unit: "kg", inStock: true, description: "Sin impurezas, cocción rápida para guisos tradicionales." },
+      { id: "tr5", name: "Harina Tostada de Molino", category: "Granos y Harinas", price: 1790, unit: "kg", inStock: true, description: "Trigo seleccionado tostado a fuego lento." },
+      { id: "tr6", name: "Merkén Ahumado y Orégano Entero", category: "Especias", price: 12000, unit: "kg", inStock: true, description: "Condimentos chilenos naturales de gran aroma." },
+      { id: "tr7", name: "Maní Tostado Natural", category: "Frutos Secos", price: 2890, unit: "kg", inStock: true, description: "Tostado diario sin sal añadida." }
+    ]
+  },
+  {
+    id: "v-rancagua",
+    name: "Feria Modelo de Rancagua - Puesto La Huerta",
+    description: "La feria más grande de O'Higgins. Verduras frescas del campo, frutas de temporada y hierbas aromáticas directo del agricultor al consumidor.",
+    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=800",
+    rating: 4.8,
+    distance: "25 km",
+    category: "Verdulería",
+    tags: ["Palta", "Durazno", "Cilantro", "Choclo", "Tomate", "Cebolla", "Papas", "Lechuga"],
+    region: "O'Higgins",
+    commune: "Rancagua",
+    address: "Av. Libertador Bernardo O'Higgins 1200, Rancagua",
+    hours: "Lunes a Sábado: 07:00 - 16:00 hrs | Domingo: 07:00 - 14:00 hrs",
+    paymentMethods: ["Efectivo", "Redcompra / Débito", "Transferencia"],
+    lat: -34.1708,
+    lng: -70.7444,
+    isFeatured: true,
+    stallNumber: "Pasillo Central - Puesto 87",
+    whatsappNumber: "+56978901234",
+    featuredProducts: [
+      { name: "Palta Hass", price: 3290, unit: "kg" },
+      { name: "Durazno Conservero", price: 1590, unit: "kg" },
+      { name: "Cilantro Fresco", price: 500, unit: "atado" },
+      { name: "Choclo", price: 450, unit: "unidad" }
+    ],
+    catalog: [
+      { id: "vr1", name: "Palta Hass de Rancagua", category: "Verduras", price: 3290, unit: "kg", inStock: true, description: "Cremosa y madura, cosecha directa del valle." },
+      { id: "vr2", name: "Durazno Conservero Blanquillo", category: "Frutas", price: 1590, unit: "kg", inStock: true, description: "Dulce y aromático, perfecto para conservas o consumo directo." },
+      { id: "vr3", name: "Cilantro Fresco del Huerto", category: "Hierbas", price: 500, unit: "atado", inStock: true, description: "Recién cortado, aroma intenso para pebre y caldos." },
+      { id: "vr4", name: "Lechuga Costina Hidropónica", category: "Hojas Verdes", price: 990, unit: "unidad", inStock: true, description: "Crujiente y fresca, lavada y lista para consumir." }
+    ]
+  },
+  {
+    id: "p-lascabras",
+    name: "Pescadería y Marisquería El Manzano - Lago Rapel",
+    description: "Pescados y mariscos frescos traídos de la costa de Pichilemu y Bucalemu hacia Las Cabras y la ribera del Lago Rapel.",
+    image: "https://images.unsplash.com/photo-1534604973900-c41ab4c3c3c0?auto=format&fit=crop&q=80&w=800",
+    rating: 4.8,
+    distance: "4.2 km",
+    category: "Pescadería",
+    tags: ["Reineta", "Merluza", "Pejerrey", "Camarones", "Congrio", "Salmón", "Machas", "Choritos", "Almejas", "Pescado"],
+    region: "O'Higgins",
+    commune: "Las Cabras",
+    address: "Ruta H-66G Sector El Manzano, Las Cabras",
+    hours: "Martes a Domingo: 08:30 - 17:30 hrs",
+    paymentMethods: ["Efectivo", "Redcompra / Débito", "Transferencia"],
+    lat: -34.2795,
+    lng: -71.3480,
+    stallNumber: "Local 4 - Paseo El Manzano",
+    whatsappNumber: "+56961238901",
+    featuredProducts: [
+      { name: "Reineta", price: 5890, unit: "kg" },
+      { name: "Merluza", price: 4490, unit: "kg" },
+      { name: "Pejerrey", price: 6500, unit: "kg" },
+      { name: "Camarones", price: 8990, unit: "kg" }
+    ],
+    catalog: [
+      { id: "plc1", name: "Filete de Reineta de Bucalemu", category: "Pescados", price: 5890, unit: "kg", inStock: true, description: "Limpia y sin espinas, desembarcada en la costa de O'Higgins." },
+      { id: "plc2", name: "Merluza Fresca para Freír", category: "Pescados", price: 4490, unit: "kg", inStock: true, description: "Ideal para pescado frito con ensalada a la chilena." },
+      { id: "plc3", name: "Pejerrey Limpio", category: "Pescados", price: 6500, unit: "kg", inStock: true, description: "Especialidad de la zona de Rapel, fileteado para fritura." },
+      { id: "plc4", name: "Machas Limpias para Parmesana", category: "Mariscos", price: 5490, unit: "kg", inStock: true, description: "Frescas de la costa de Pichilemu." },
+      { id: "plc5", name: "Congrio Colorado y Salmón Fresco", category: "Pescados", price: 9490, unit: "kg", inStock: true, description: "Cortes seleccionados para caldillo, ceviche o a la plancha." },
+      { id: "plc6", name: "Choritos y Almejas para Caldillo", category: "Mariscos", price: 2490, unit: "kg", inStock: true, description: "Mariscos frescos para paila marina y curanto." }
+    ]
+  },
+  {
+    id: "v-mercado-lascabras",
+    name: "Mercado Campesino - Plaza de Armas Las Cabras",
+    description: "Agrupación de pequeños agricultores de Las Cabras, Cocalán y Llallauquén. Frutillas dulces, paltas chilenas, miel de palma, albahaca y huevos de gallina libre.",
+    image: "https://images.unsplash.com/photo-1610348725531-843dff563e2c?auto=format&fit=crop&q=80&w=800",
+    rating: 4.9,
+    distance: "0.4 km",
+    category: "Verdulería",
+    tags: ["Palta", "Frutillas", "Huevos", "Miel", "Albahaca", "Tomate", "Limón", "Manzana", "Naranja", "Plátano", "Melón", "Arándanos"],
+    region: "O'Higgins",
+    commune: "Las Cabras",
+    address: "Calle Carrera frente a Plaza de Armas, Las Cabras",
+    hours: "Viernes y Sábado: 08:30 - 15:00 hrs",
+    paymentMethods: ["Efectivo", "Transferencia bancaria"],
+    lat: -34.2892,
+    lng: -71.3105,
+    isFeatured: true,
+    stallNumber: "Toldo Central Productores",
+    whatsappNumber: "+56958904321",
+    featuredProducts: [
+      { name: "Palta", price: 3390, unit: "kg" },
+      { name: "Frutillas", price: 2290, unit: "kg" },
+      { name: "Huevos", price: 2800, unit: "docena" },
+      { name: "Miel", price: 5500, unit: "kg" }
+    ],
+    catalog: [
+      { id: "mlc1", name: "Palta Hass de Cocalán", category: "Verduras", price: 3390, unit: "kg", inStock: true, description: "Cosechada en las laderas soleadas del valle de Cocalán." },
+      { id: "mlc2", name: "Frutillas Recién Cosechadas", category: "Frutas", price: 2290, unit: "kg", inStock: true, description: "Dulces y aromáticas, de huertos familiares de Las Cabras." },
+      { id: "mlc3", name: "Huevos de Campo Gallina Libre", category: "Huevos y Aves", price: 2800, unit: "docena", inStock: true, description: "Recolección diaria de parcelas de Llallauquén." },
+      { id: "mlc4", name: "Miel Multifloral Pura", category: "Despensa", price: 5500, unit: "kg", inStock: true, description: "Cosecha apícola natural de flora nativa de la zona." },
+      { id: "mlc5", name: "Albahaca Fresca para Humitas y Pastel", category: "Hierbas", price: 800, unit: "atado", inStock: true, description: "Albahaca criolla aromática recién cortada." }
     ]
   }
 ];

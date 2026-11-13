@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth, AuthProvider } from '@/features/auth/context/AuthContext';
 import { toast, Skeleton } from "@heroui/react";
-import { ChefHat, Clock, Users, Heart, Share2, BookOpen, ListOrdered, Video, Bookmark, Minus, Plus, Flame, Beef, Wheat, Droplet, MessageCircle } from 'lucide-react';
+import { ChefHat, Clock, Users, Heart, Share2, BookOpen, ListOrdered, Video, Bookmark, Minus, Plus, Flame, Beef, Wheat, Droplet, MessageCircle, Locate, Navigation, Store } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import AdSenseBanner from '@/shared/ui/AdSenseBanner';
 import CollectionPickerModal from './CollectionPickerModal.jsx';
@@ -9,6 +9,11 @@ import VideoEmbed from '@/shared/ui/VideoEmbed.jsx';
 import { trackRecipeView, trackRecipeDwellTime } from '../services/recommendationEngine';
 import { formatScaledIngredient, formatScaledIngredientText } from '@/shared/utils/unitRules';
 import { notifyAuthRequired } from '@/shared/utils/authToast.jsx';
+import { GeolocationConsentModal } from '@/features/locales/components/GeolocationConsentModal';
+import { getSavedUserLocationSession, saveUserLocationSession, setLocationSavingPreference } from '@/features/locales/utils/geo';
+import { IngredientMarketplaceRow } from './IngredientMarketplaceRow';
+import CommentSection from '@/features/comments/components/CommentSection';
+import AffiliateCarousel from '@/shared/ui/AffiliateCarousel';
 
 
 const parseTextToList = (text) => {
@@ -29,6 +34,75 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
   const [loading, setLoading] = useState(!modoLocal);
   const [error, setError] = useState(null);
   const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState(() => getSavedUserLocationSession());
+  const [isLocating, setIsLocating] = useState(false);
+  const [showGeoConsentModal, setShowGeoConsentModal] = useState(false);
+
+  const executeGeolocation = () => {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        };
+        setUserLocation(coords);
+        saveUserLocationSession(coords);
+        setIsLocating(false);
+      },
+      () => {
+        setIsLocating(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
+  const handleRequestLocation = () => {
+    try {
+      const consent = localStorage.getItem('chilebite_geo_consent');
+      if (consent === 'accepted') {
+        executeGeolocation();
+      } else {
+        setShowGeoConsentModal(true);
+      }
+    } catch {
+      executeGeolocation();
+    }
+  };
+
+  const handleAcceptGeoConsent = () => {
+    setLocationSavingPreference(true);
+    setShowGeoConsentModal(false);
+    executeGeolocation();
+  };
+
+  const handleDeclineGeoConsent = () => {
+    setLocationSavingPreference(false);
+    setUserLocation(null);
+    setShowGeoConsentModal(false);
+  };
+
+  // Si el usuario ya había aceptado geolocalización previamente, obtener coordenadas automáticamente
+  useEffect(() => {
+    const handleLocationEvent = (e) => {
+      setUserLocation(e?.detail || null);
+    };
+    window.addEventListener('chilebite:location-changed', handleLocationEvent);
+
+    if (!userLocation) {
+      try {
+        const saved = getSavedUserLocationSession();
+        if (saved) {
+          setUserLocation(saved);
+        } else if (localStorage.getItem('chilebite_geo_consent') === 'accepted') {
+          executeGeolocation();
+        }
+      } catch {}
+    }
+
+    return () => window.removeEventListener('chilebite:location-changed', handleLocationEvent);
+  }, []);
 
   // Dwell Time tracking (Señal implícita de tiempo de lectura e interacción)
   useEffect(() => {
@@ -478,23 +552,63 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
               </div>
             </div>
 
-            <div className="premium-glass-panel p-8 rounded-[2rem] border border-border-subtle shadow-sm mb-8 w-full">
-              <h2 className="text-3xl font-serif font-bold mb-6 text-text-main border-b border-border-subtle pb-4">Ingredientes</h2>
-              <ul className="space-y-4 list-none max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="premium-glass-panel p-8 rounded-[2rem] border border-border-subtle shadow-sm mb-8 w-full overflow-visible">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-border-subtle pb-4">
+                <div>
+                  <h2 className="text-3xl font-serif font-bold text-text-main">Ingredientes</h2>
+                  <p className="text-xs text-text-muted mt-1 flex items-center gap-1.5">
+                    <Store className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>Coloca el cursor sobre cualquier ingrediente para ver dónde comprarlo cerca de tu ubicación.</span>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRequestLocation}
+                  disabled={isLocating}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
+                    userLocation
+                      ? 'bg-emerald-600 text-white shadow-emerald-600/20'
+                      : 'bg-emerald-500/15 hover:bg-emerald-600 text-emerald-700 dark:text-emerald-300 hover:text-white border border-emerald-500/30'
+                  }`}
+                >
+                  {userLocation ? (
+                    <>
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>Ubicación GPS activa</span>
+                    </>
+                  ) : (
+                    <>
+                      <Locate className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+                      <span>{isLocating ? 'Localizando...' : 'Usar mi ubicación'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <ul className="space-y-4 list-none overflow-visible">
                 {ingredientsState.map(ing => {
                   const scale = porcionesDeseadas / (receta.numero_porcion || 1);
                   let text = ing.text;
+                  const structuredName = ing.isDetailed && ing.data ? ing.data.ingrediente?.nombre : undefined;
                   if (ing.isDetailed && ing.data) {
                     const scaledCantidad = parseFloat(ing.data.cantidad) * scale;
-                    text = formatScaledIngredient(scaledCantidad, ing.data.unidad, ing.data.ingrediente?.nombre || 'ingrediente');
+                    text = formatScaledIngredient(scaledCantidad, ing.data.unidad, structuredName || 'ingrediente');
                   } else if (!ing.isDetailed && ing.text && scale !== 1) {
                     text = formatScaledIngredientText(ing.text, scale);
                   }
                   return (
-                    <li key={ing.id} onClick={() => toggleCheck("ingredients", ing.id)} className={`flex items-start gap-4 p-3.5 rounded-xl cursor-pointer transition-all ${ing.checked ? "opacity-50 grayscale bg-surface-muted/40 border border-transparent" : "premium-glass-panel hover:bg-surface-muted/60 border border-border-subtle shadow-sm"}`}>
-                      <span className={`mt-0.5 shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center font-bold text-xs transition-colors ${ing.checked ? 'bg-brand-primary border-brand-primary text-white' : 'border-border-strong text-transparent hover:border-brand-primary'}`}>✓</span>
-                      <span className={`flex-1 text-lg font-medium tracking-tight ${ing.checked ? "line-through text-text-subtle" : "text-text-main"}`}>{text}</span>
-                    </li>
+                    <IngredientMarketplaceRow
+                      key={ing.id}
+                      id={ing.id}
+                      text={text}
+                      structuredName={structuredName}
+                      checked={ing.checked}
+                      onToggleCheck={() => toggleCheck("ingredients", ing.id)}
+                      userLocation={userLocation}
+                      isLocating={isLocating}
+                      onRequestLocation={handleRequestLocation}
+                    />
                   );
                 })}
               </ul>
@@ -547,7 +661,7 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
   };
 
   return (
-    <div className={`flex flex-col transition-colors duration-500 w-full ${isPreview ? 'p-0 pt-16 md:pt-20' : 'min-h-screen pt-12 pb-12'}`}>
+    <div className={`flex flex-col transition-colors duration-500 w-full animate-in fade-in duration-300 ${isPreview ? 'p-0 pt-16 md:pt-20' : 'min-h-screen pt-12 pb-12'}`}>
       <div className={`w-full ${isPreview ? 'px-0' : 'max-w-[1400px] mx-auto px-4 lg:px-8'}`}>
         <div className={`premium-glass-wrapper w-full shadow-2xl overflow-hidden flex flex-col lg:flex-row border border-border-subtle relative ${isPreview ? 'rounded-[2rem] min-h-0' : 'rounded-[2.5rem] min-h-[850px]'}`}>
 
@@ -617,9 +731,26 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
               recetaId={idReceta}
               onSaveComplete={handleCollectionSaveComplete}
             />
+
+            <GeolocationConsentModal
+              isOpen={showGeoConsentModal}
+              onAccept={handleAcceptGeoConsent}
+              onDecline={handleDeclineGeoConsent}
+            />
           </div>
 
         </div>
+
+        {!isPreview && (
+          <div className="mt-12 space-y-12">
+            <div id="productos-cocina" className="w-full">
+              <AffiliateCarousel />
+            </div>
+            <div id="comentarios" className="w-full pb-8">
+              <CommentSection recipeId={idReceta} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth, AuthProvider } from '@/features/auth/context/AuthContext';
-import { toast } from "@heroui/react";
-import { ChefHat, Clock, Users, Heart, Share2, BookOpen, ListOrdered, Video, Bookmark, Minus, Plus, Flame, Beef, Wheat, Droplet } from 'lucide-react';
+import { toast, Skeleton } from "@heroui/react";
+import { ChefHat, Clock, Users, Heart, Share2, BookOpen, ListOrdered, Video, Bookmark, Minus, Plus, Flame, Beef, Wheat, Droplet, MessageCircle, Locate, Navigation, Store } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
+import AdSenseBanner from '@/shared/ui/AdSenseBanner';
+import CollectionPickerModal from './CollectionPickerModal.jsx';
+import VideoEmbed from '@/shared/ui/VideoEmbed.jsx';
+import { trackRecipeView, trackRecipeDwellTime } from '../services/recommendationEngine';
+import { formatScaledIngredient, formatScaledIngredientText } from '@/shared/utils/unitRules';
+import { notifyAuthRequired } from '@/shared/utils/authToast.jsx';
+import { GeolocationConsentModal } from '@/features/locales/components/GeolocationConsentModal';
+import { getSavedUserLocationSession, saveUserLocationSession, setLocationSavingPreference } from '@/features/locales/utils/geo';
+import { IngredientMarketplaceRow } from './IngredientMarketplaceRow';
+import CommentSection from '@/features/comments/components/CommentSection';
+import AffiliateCarousel from '@/shared/ui/AffiliateCarousel';
 
-const COLOR_PRINCIPAL = '#b08968';
 
 const parseTextToList = (text) => {
   if (!text || typeof text !== 'string') return [];
   return text.split('\n').map(item => item.trim()).filter(item => item.length > 0);
 };
 
-function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false, usuario }) {
+function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false, usuario, isPreview = false }) {
   const { session } = useAuth();
   const [receta, setReceta] = useState(recetaProp || null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -22,6 +33,117 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
   const [porcionesDeseadas, setPorcionesDeseadas] = useState(1);
   const [loading, setLoading] = useState(!modoLocal);
   const [error, setError] = useState(null);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
+  const [userLocation, setUserLocation] = useState(() => getSavedUserLocationSession());
+  const [isLocating, setIsLocating] = useState(false);
+  const [showGeoConsentModal, setShowGeoConsentModal] = useState(false);
+
+  const executeGeolocation = () => {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return;
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        };
+        setUserLocation(coords);
+        saveUserLocationSession(coords);
+        setIsLocating(false);
+      },
+      () => {
+        setIsLocating(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
+  const handleRequestLocation = () => {
+    try {
+      const consent = localStorage.getItem('chilebite_geo_consent');
+      if (consent === 'accepted') {
+        executeGeolocation();
+      } else {
+        setShowGeoConsentModal(true);
+      }
+    } catch {
+      executeGeolocation();
+    }
+  };
+
+  const handleAcceptGeoConsent = () => {
+    setLocationSavingPreference(true);
+    setShowGeoConsentModal(false);
+    executeGeolocation();
+  };
+
+  const handleDeclineGeoConsent = () => {
+    setLocationSavingPreference(false);
+    setUserLocation(null);
+    setShowGeoConsentModal(false);
+  };
+
+  // Si el usuario ya había aceptado geolocalización previamente, obtener coordenadas automáticamente
+  useEffect(() => {
+    const handleLocationEvent = (e) => {
+      setUserLocation(e?.detail || null);
+    };
+    window.addEventListener('chilebite:location-changed', handleLocationEvent);
+
+    if (!userLocation) {
+      try {
+        const saved = getSavedUserLocationSession();
+        if (saved) {
+          setUserLocation(saved);
+        } else if (localStorage.getItem('chilebite_geo_consent') === 'accepted') {
+          executeGeolocation();
+        }
+      } catch {}
+    }
+
+    return () => window.removeEventListener('chilebite:location-changed', handleLocationEvent);
+  }, []);
+
+  // Dwell Time tracking (Señal implícita de tiempo de lectura e interacción)
+  useEffect(() => {
+    const targetId = idReceta || recetaProp?.id;
+    if (!targetId) return;
+
+    let accumulatedSeconds = 0;
+    let isVisible = !document.hidden;
+    let lastResumeTime = Date.now();
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (isVisible) {
+          accumulatedSeconds += (Date.now() - lastResumeTime) / 1000;
+          isVisible = false;
+        }
+      } else {
+        lastResumeTime = Date.now();
+        isVisible = true;
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Registro periódico cada 20s
+    const interval = setInterval(() => {
+      if (isVisible) {
+        const currentSecs = accumulatedSeconds + ((Date.now() - lastResumeTime) / 1000);
+        trackRecipeDwellTime(targetId, currentSecs);
+      }
+    }, 20000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(interval);
+      if (isVisible) {
+        accumulatedSeconds += (Date.now() - lastResumeTime) / 1000;
+      }
+      trackRecipeDwellTime(targetId, accumulatedSeconds);
+    };
+  }, [idReceta, recetaProp?.id]);
 
   useEffect(() => {
     if (modoLocal && recetaProp) {
@@ -39,18 +161,94 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
       setIsSaved(recetaProp.is_guardada || false);
       return;
     }
-    
+
     if (!idReceta) return;
+    trackRecipeView(idReceta);
 
     const fetchReceta = async () => {
       try {
-        const token = session?.access_token || localStorage.getItem("access_token");
-        const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+        const { data, error: fetchErr } = await supabase
+          .from('core_receta')
+          .select(`
+            *,
+            core_tipoplato:tipo_plato_id ( nombre ),
+            core_pais:pais_id ( nombre ),
+            ingredientes_detalle:core_recetaingrediente ( 
+              cantidad, 
+              unidad, 
+              ingrediente:core_ingrediente ( nombre ) 
+            )
+          `)
+          .eq('id', idReceta)
+          .single();
 
-        const response = await fetch(`http://127.0.0.1:8000/api/recetas/${idReceta}/`, { headers });
-        if (!response.ok) throw new Error(`Error ${response.status}`);
-        
-        const data = await response.json();
+        if (fetchErr) throw new Error(fetchErr.message);
+
+        let userName = 'Chef Anónimo';
+        if (data.user_id) {
+          const { data: profileData } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', data.user_id)
+            .single();
+
+          if (profileData && profileData.username) {
+            userName = profileData.username;
+          }
+        }
+
+        // Map data to match expected frontend structure
+        data.usuario_nombre = userName;
+
+        let liked = false;
+        let guardada = false;
+        let accurateLikes = data.contador_likes || 0;
+
+        try {
+          const { count } = await supabase.from('core_recetalike').select('*', { count: 'exact', head: true }).eq('receta_id', idReceta);
+          accurateLikes = count || 0;
+        } catch (e) { }
+
+        // Fetch user specific state (liked / saved)
+        if (session?.user?.id) {
+          const [{ count: likeCount }, { data: colecciones }] = await Promise.all([
+            supabase
+              .from('core_recetalike')
+              .select('*', { count: 'exact', head: true })
+              .eq('receta_id', idReceta)
+              .eq('user_id', session.user.id),
+            supabase
+              .from('core_coleccion')
+              .select('id')
+              .eq('user_id', session.user.id)
+          ]);
+
+          let saveCount = 0;
+          if (colecciones && colecciones.length > 0) {
+            const { count } = await supabase
+              .from('core_coleccion_receta')
+              .select('*', { count: 'exact', head: true })
+              .eq('receta_id', idReceta)
+              .in('coleccion_id', colecciones.map(c => c.id));
+            saveCount = count || 0;
+          }
+
+          liked = likeCount > 0;
+          guardada = saveCount > 0;
+        }
+
+        // Fix column naming mappings derived from old API outputs vs raw Supabase schema
+        data.portada = data.imagen_url || '';
+        data.descripcion = data.descripcion_larga || '';
+        data.descripcion_corta = data.descripcion_corta || data.descripcion_larga || '';
+        data.calorias = data.total_calorias || 0;
+        data.proteinas = data.total_proteinas || 0;
+        data.carbohidratos = data.total_carbohidratos || 0;
+        data.grasas = data.total_grasas || 0;
+        data.porciones = data.numero_porcion || 1;
+        data.likes = accurateLikes;
+        data.contador_likes = accurateLikes;
+
         setReceta(data);
 
         const instruccionesArray = parseTextToList(data.preparacion);
@@ -62,8 +260,8 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
           setIngredientsState(arr.map((text, i) => ({ id: i, text, checked: false, isDetailed: false })));
         }
         setPorcionesDeseadas(data.numero_porcion || 1);
-        setIsFavorite(data.liked || false);
-        setIsSaved(data.is_guardada || false);
+        setIsFavorite(liked);
+        setIsSaved(guardada);
       } catch (err) {
         console.error(err);
         setError('No se pudo cargar la receta.');
@@ -96,26 +294,48 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
   };
 
   const handleFavorite = async () => {
+    if (!session?.user?.id) {
+      notifyAuthRequired("like");
+      return;
+    }
     try {
-      const token = session?.access_token || localStorage.getItem('access_token');
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      if (!token) return toast.danger("Acceso Denegado", { description: "Debes estar logueado para marcar como favorito" });
-      await fetch(`http://127.0.0.1:8000/api/recetas/${idReceta}/like/`, { method: 'POST', headers });
+      if (isFavorite) {
+        await supabase.from('core_recetalike').delete().eq('receta_id', idReceta).eq('user_id', session.user.id);
+        setReceta(prev => ({ ...prev, contador_likes: Math.max(0, (prev.contador_likes || 0) - 1) }));
+        toast.success("Ya no te gusta esta receta");
+      } else {
+        await supabase.from('core_recetalike').insert([{ receta_id: idReceta, user_id: session.user.id }]);
+        setReceta(prev => ({ ...prev, contador_likes: (prev.contador_likes || 0) + 1 }));
+        toast.success((
+          <div className="flex flex-col">
+            <span className="font-bold">¡Genial!</span>
+            <span className="text-sm">Agregado a tus me gusta</span>
+          </div>
+        ));
+      }
       setIsFavorite(prev => !prev);
     } catch (err) { console.error(err); }
   };
 
   const handleSave = async () => {
-    const token = session?.access_token || localStorage.getItem("access_token");
-    if (!token) return toast.danger("Acceso Denegado", { description: "Debes estar logueado para guardar" });
+    if (!session?.user?.id) {
+      notifyAuthRequired("save");
+      return;
+    }
+    setIsCollectionModalOpen(true);
+  };
+
+  const handleCollectionSaveComplete = async () => {
+    if (!session?.user?.id) return;
     try {
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      await fetch(`http://127.0.0.1:8000/api/recetas/${idReceta}/guardar/`, { method: 'POST', headers });
-      setIsSaved(prev => !prev);
-    } catch (err) { console.error(err); }
+      const { data: colecciones } = await supabase.from('core_coleccion').select('id').eq('user_id', session.user.id);
+      if (colecciones && colecciones.length > 0) {
+        const { count } = await supabase.from('core_coleccion_receta').select('*', { count: 'exact', head: true }).eq('receta_id', idReceta).in('coleccion_id', colecciones.map(c => c.id));
+        setIsSaved((count || 0) > 0);
+      } else {
+        setIsSaved(false);
+      }
+    } catch (err) { }
   };
 
   const handleShare = () => {
@@ -124,17 +344,69 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
       navigator.share({ title: receta.nombre, text: `Mira esta receta: ${receta.nombre}`, url: window.location.href }).catch(console.error);
     } else {
       navigator.clipboard.writeText(window.location.href);
-      console.log('Link copiado al portapapeles');
+      toast.success("Enlace de la receta copiado al portapapeles");
     }
   };
 
   const navigateBack = () => window.history.back();
 
-  if (loading) return <div className="flex items-center justify-center min-h-screen text-lg text-slate-900 dark:text-zinc-200">Cargando receta...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex flex-col pt-12 pb-12 transition-colors duration-500">
+      <div className="max-w-[1400px] mx-auto w-full px-4 lg:px-8">
+        <div className="premium-glass-wrapper rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col lg:flex-row min-h-[850px] border border-border-subtle relative">
+
+          <div className="lg:w-[320px] xl:w-[380px] p-8 relative flex flex-col justify-between premium-glass-panel border-r border-border-subtle z-10">
+            <div>
+              <div className="flex items-center gap-3 mb-10">
+                <Skeleton className="w-14 h-14 rounded-xl" />
+                <Skeleton className="h-8 w-32 rounded-lg" />
+              </div>
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <Skeleton key={i} className="w-full h-14 rounded-2xl" />
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-8 mt-12 border-t border-border-subtle">
+              <div className="flex justify-center gap-6">
+                {[1, 2, 3].map(i => (
+                  <Skeleton key={i} className="w-14 h-14 rounded-full" />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex-1 p-8 md:p-12 xl:p-16 relative">
+            <div className="space-y-8">
+              <div className="flex flex-col md:flex-row gap-8 items-start">
+                <div className="flex-1 space-y-4 w-full">
+                  <Skeleton className="h-16 w-3/4 rounded-2xl" />
+                  <Skeleton className="h-6 w-1/4 rounded-lg mb-6" />
+                  <Skeleton className="h-32 w-full rounded-2xl" />
+                </div>
+                <div className="w-full md:w-1/3 flex-shrink-0">
+                  <Skeleton className="h-64 w-full rounded-[2rem]" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Skeleton className="h-24 w-full rounded-2xl" />
+                <Skeleton className="h-24 w-full rounded-2xl" />
+              </div>
+
+              <Skeleton className="h-48 w-full rounded-[2rem]" />
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
   if (error || !receta) return (
-    <div className="flex flex-col items-center justify-center min-h-screen text-center text-slate-900 dark:text-zinc-200">
+    <div className="flex flex-col items-center justify-center min-h-screen text-center text-text-main">
       <p className="text-xl font-semibold mb-4">{error || 'Receta no encontrada'}</p>
-      <button onClick={navigateBack} className="px-4 py-2 bg-[#b08968] text-white dark:text-zinc-950 rounded-full hover:bg-[rgba(176,137,104,0.8)] dark:hover:bg-orange-200 transition font-bold">Volver al recetario</button>
+      <button onClick={navigateBack} className="px-6 py-2.5 bg-brand-primary text-white rounded-full hover:bg-brand-hover transition-colors font-bold shadow-md shadow-brand-primary/20">Volver al recetario</button>
     </div>
   );
 
@@ -152,82 +424,102 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
       case 1:
         return (
           <div className="animate-fade-in space-y-8 z-10 relative">
-            <div className="flex flex-col md:flex-row gap-8 items-start">
-              <div className="flex-1">
-                <h1 className="text-5xl md:text-6xl font-serif font-bold mb-2 text-slate-800 dark:text-orange-200">{receta.nombre}</h1>
-                <p className="text-slate-500 dark:text-orange-100 text-base italic mb-6">Por: <span className="text-slate-700 dark:text-zinc-200 font-medium">{receta.usuario_nombre || receta.usuario || "Chef Anónimo"}</span></p>
-                <div className="text-slate-700 dark:text-zinc-200 text-lg leading-relaxed premium-glass-panel p-6 rounded-2xl border border-slate-200 dark:border-zinc-800 shadow-lg">
-                  {receta.descripcion_larga || receta.descripcion_corta}
-                </div>
+            {/* Header Limpio Estilo Editorial */}
+            <div className="border-b border-border-subtle pb-6 mb-8">
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-brand-primary mb-2 block">
+                Libro de Recetas
+              </span>
+              <h1 className="text-4xl md:text-5xl font-serif font-black text-text-main leading-tight mb-4">
+                {receta.nombre}
+              </h1>
+              <div className="flex items-center gap-2">
+
               </div>
+            </div>
+
+            {/* Contenedor de Texto con Infobox Flotante */}
+            <div className="relative">
+              {/* Infobox Imagen (Pura y Ordenada) */}
               {imageUrl && (
-                <div className="w-full md:w-1/3 flex-shrink-0">
-                  <div className="relative h-64 w-full rounded-[2rem] overflow-hidden shadow-2xl border border-slate-200 dark:border-zinc-700">
-                    <img src={imageUrl} alt={receta.nombre} className="absolute inset-0 w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 dark:from-zinc-950/80 to-transparent"></div>
+                <div className="float-none md:float-right md:ml-8 md:mb-6 w-full md:w-[320px] xl:w-[380px] bg-surface-muted/60 p-1.5 rounded-2xl border border-border-subtle shadow-sm">
+                  <div className="aspect-[4/3] rounded-xl overflow-hidden">
+                    <img
+                      src={imageUrl}
+                      alt={receta.nombre}
+                      width="400"
+                      height="300"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 </div>
               )}
+
+              {/* Cuerpo de la Descripción (Inicio Directo) */}
+              <div className="text-text-muted text-lg leading-[1.8] text-justify space-y-6">
+                {receta.descripcion_larga || receta.descripcion_corta}
+              </div>
+
+              {/* Clearfix para layout Wikipedia */}
+              <div className="clear-both"></div>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="premium-glass-panel rounded-2xl p-6 flex items-center justify-between border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-900/80 transition shadow-sm">
+              <div className="premium-glass-panel rounded-2xl p-6 flex items-center justify-between border border-border-subtle hover:border-border-strong hover:bg-surface-muted/40 transition-all shadow-sm">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-[#b08968]/10 dark:bg-[#b08968]/20 rounded-xl">
-                    <Clock className="w-6 h-6 text-[#b08968] dark:text-orange-200" />
+                  <div className="p-3 bg-brand-subtle rounded-xl text-brand-primary">
+                    <Clock className="w-6 h-6 text-brand-primary" />
                   </div>
                   <div>
-                    <p className="text-[10px] text-slate-500 dark:text-orange-200/60 font-bold uppercase tracking-widest">Tiempo Total</p>
-                    <p className="font-extrabold text-xl text-slate-800 dark:text-zinc-200">{tiempoTotal}</p>
+                    <p className="text-[10px] text-text-subtle font-bold uppercase tracking-widest">Tiempo Total</p>
+                    <p className="font-extrabold text-xl text-text-main">{tiempoTotal}</p>
                   </div>
                 </div>
               </div>
-              <div className="premium-glass-panel rounded-2xl p-6 flex items-center justify-between border border-slate-200 dark:border-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-900/80 transition shadow-sm">
+              <div className="premium-glass-panel rounded-2xl p-6 flex items-center justify-between border border-border-subtle hover:border-border-strong hover:bg-surface-muted/40 transition-all shadow-sm">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-[#b08968]/10 dark:bg-[#b08968]/20 rounded-xl">
-                    <ChefHat className="w-6 h-6 text-[#b08968] dark:text-orange-200" />
+                  <div className="p-3 bg-brand-subtle rounded-xl text-brand-primary">
+                    <ChefHat className="w-6 h-6 text-brand-primary" />
                   </div>
                   <div>
-                    <p className="text-[10px] text-slate-500 dark:text-orange-200/60 font-bold uppercase tracking-widest">Dificultad</p>
-                    <p className="font-extrabold text-xl text-slate-800 dark:text-zinc-200">{receta.dificultad}</p>
+                    <p className="text-[10px] text-text-subtle font-bold uppercase tracking-widest">Dificultad</p>
+                    <p className="font-extrabold text-xl text-text-main">{receta.dificultad}</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            {receta.total_calorias != null && parseFloat(receta.total_calorias) > 0 && (
-              <div className="premium-glass-panel rounded-[2rem] p-8 border border-slate-200 dark:border-zinc-800 relative overflow-hidden shadow-sm">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-[#b08968] opacity-[0.05] dark:opacity-5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none"></div>
+            {(isPreview || (receta.total_calorias != null && parseFloat(receta.total_calorias) > 0)) && (
+              <div className="premium-glass-panel rounded-[2rem] p-8 border border-border-subtle relative overflow-hidden shadow-sm">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 relative z-10 gap-4">
                   <div>
-                    <h3 className="text-2xl font-serif font-bold text-slate-800 dark:text-orange-200 flex items-center gap-3">
-                      <Flame className="w-7 h-7 text-[#b08968] dark:text-orange-200" />
+                    <h2 className="text-2xl font-serif font-bold text-text-main flex items-center gap-3">
+                      <Flame className="w-7 h-7 text-brand-primary" />
                       Valor Nutricional
-                    </h3>
-                    <p className="text-slate-500 dark:text-orange-200/60 text-sm mt-1">Tabla de información nutricional de la receta</p>
+                    </h2>
+                    <p className="text-text-muted text-sm mt-1">Tabla de información nutricional de la receta</p>
                   </div>
-                  <span className="text-xs font-bold text-white dark:text-zinc-950 bg-[#b08968] dark:bg-orange-200 px-4 py-2 rounded-full tracking-wide uppercase shadow-lg">1 porción</span>
+                  <span className="text-xs font-bold text-white bg-brand-primary px-4 py-2 rounded-full tracking-wide uppercase shadow-md shadow-brand-primary/20">1 porción</span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 relative z-10">
-                  <div className="premium-glass-panel rounded-2xl p-5 text-center border border-slate-200 dark:border-[#b08968]/20 transition-colors shadow-sm">
-                    <Flame className="w-5 h-5 mx-auto mb-2 text-orange-500 dark:text-orange-400" />
-                    <p className="text-[10px] text-slate-500 dark:text-orange-200/60 uppercase font-bold tracking-widest mb-1">Calorías</p>
-                    <p className="font-extrabold text-3xl text-slate-800 dark:text-zinc-200">{receta.total_calorias} <span className="text-sm font-medium text-slate-500 dark:text-orange-200/60">kcal</span></p>
+                  <div className="premium-glass-panel rounded-2xl p-5 text-center border border-border-subtle hover:border-amber-500/40 transition-colors shadow-sm">
+                    <Flame className="w-5 h-5 mx-auto mb-2 text-amber-500" />
+                    <p className="text-[10px] text-text-subtle uppercase font-bold tracking-widest mb-1">Calorías</p>
+                    <p className="font-extrabold text-3xl text-text-main">{receta.total_calorias} <span className="text-sm font-medium text-text-muted">kcal</span></p>
                   </div>
-                  <div className="premium-glass-panel rounded-2xl p-5 text-center border border-slate-200 dark:border-[#b08968]/20 transition-colors shadow-sm">
-                    <Beef className="w-5 h-5 mx-auto mb-2 text-blue-500 dark:text-blue-400" />
-                    <p className="text-[10px] text-slate-500 dark:text-orange-200/60 uppercase font-bold tracking-widest mb-1">Proteínas</p>
-                    <p className="font-extrabold text-3xl text-slate-800 dark:text-zinc-200">{receta.total_proteinas} <span className="text-sm font-medium text-slate-500 dark:text-orange-200/60">g</span></p>
+                  <div className="premium-glass-panel rounded-2xl p-5 text-center border border-border-subtle hover:border-rose-500/40 transition-colors shadow-sm">
+                    <Beef className="w-5 h-5 mx-auto mb-2 text-rose-500" />
+                    <p className="text-[10px] text-text-subtle uppercase font-bold tracking-widest mb-1">Proteínas</p>
+                    <p className="font-extrabold text-3xl text-text-main">{receta.total_proteinas} <span className="text-sm font-medium text-text-muted">g</span></p>
                   </div>
-                  <div className="premium-glass-panel rounded-2xl p-5 text-center border border-slate-200 dark:border-[#b08968]/20 transition-colors shadow-sm">
-                    <Wheat className="w-5 h-5 mx-auto mb-2 text-emerald-500 dark:text-emerald-400" />
-                    <p className="text-[10px] text-slate-500 dark:text-orange-200/60 uppercase font-bold tracking-widest mb-1">Carbs</p>
-                    <p className="font-extrabold text-3xl text-slate-800 dark:text-zinc-200">{receta.total_carbohidratos} <span className="text-sm font-medium text-slate-500 dark:text-orange-200/60">g</span></p>
+                  <div className="premium-glass-panel rounded-2xl p-5 text-center border border-border-subtle hover:border-emerald-500/40 transition-colors shadow-sm">
+                    <Wheat className="w-5 h-5 mx-auto mb-2 text-emerald-500" />
+                    <p className="text-[10px] text-text-subtle uppercase font-bold tracking-widest mb-1">Carbs</p>
+                    <p className="font-extrabold text-3xl text-text-main">{receta.total_carbohidratos} <span className="text-sm font-medium text-text-muted">g</span></p>
                   </div>
-                  <div className="premium-glass-panel rounded-2xl p-5 text-center border border-slate-200 dark:border-[#b08968]/20 transition-colors shadow-sm">
-                    <Droplet className="w-5 h-5 mx-auto mb-2 text-yellow-500 dark:text-yellow-500" />
-                    <p className="text-[10px] text-slate-500 dark:text-orange-200/60 uppercase font-bold tracking-widest mb-1">Grasas</p>
-                    <p className="font-extrabold text-3xl text-slate-800 dark:text-zinc-200">{receta.total_grasas} <span className="text-sm font-medium text-slate-500 dark:text-orange-200/60">g</span></p>
+                  <div className="premium-glass-panel rounded-2xl p-5 text-center border border-border-subtle hover:border-sky-500/40 transition-colors shadow-sm">
+                    <Droplet className="w-5 h-5 mx-auto mb-2 text-sky-500" />
+                    <p className="text-[10px] text-text-subtle uppercase font-bold tracking-widest mb-1">Grasas</p>
+                    <p className="font-extrabold text-3xl text-text-main">{receta.total_grasas} <span className="text-sm font-medium text-text-muted">g</span></p>
                   </div>
                 </div>
               </div>
@@ -237,45 +529,86 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
       case 2:
         return (
           <div className="animate-fade-in z-10 relative">
-            <div className="premium-glass-panel rounded-[2rem] p-6 md:p-8 flex flex-col md:flex-row items-center justify-between border border-slate-200 dark:border-[#b08968]/30 mb-8 shadow-sm dark:shadow-xl relative overflow-hidden">
-               <div className="absolute top-0 left-0 w-32 h-32 bg-[#b08968] opacity-[0.05] dark:opacity-10 rounded-full blur-2xl -ml-16 -mt-16 pointer-events-none"></div>
+            <div className="premium-glass-panel rounded-[2rem] p-6 md:p-8 flex flex-col md:flex-row items-center justify-between border border-border-subtle mb-8 shadow-sm relative overflow-hidden">
               <div className="flex items-center gap-5 mb-6 md:mb-0 relative z-10">
-                <div className="p-4 bg-gradient-to-br from-[#b08968]/20 to-[#b08968]/5 dark:from-[#b08968]/30 dark:to-[#b08968]/10 rounded-2xl border border-slate-200 dark:border-[#b08968]/20 shadow-inner">
-                  <Users className="w-7 h-7 text-[#b08968] dark:text-orange-200" />
+                <div className="p-4 bg-brand-subtle rounded-2xl border border-border-subtle shadow-inner">
+                  <Users className="w-7 h-7 text-brand-primary" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-2xl text-slate-800 dark:text-zinc-200 mb-1">Calculadora de Porciones</h3>
-                  <p className="text-sm text-slate-500 dark:text-orange-200/60">Ajusta las cantidades para tus invitados</p>
+                  <h2 className="font-bold text-2xl text-text-main mb-1">Calculadora de Porciones</h2>
+                  <p className="text-sm text-text-muted">Ajusta las cantidades para tus invitados</p>
                 </div>
               </div>
-              <div className="flex items-center gap-6 premium-glass-panel p-3 rounded-full border border-slate-200 dark:border-zinc-800 shadow-sm dark:shadow-inner relative z-10">
-                <button onClick={() => setPorcionesDeseadas(p => Math.max(1, p - 1))} className="p-3 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-[#b08968] dark:hover:bg-[#b08968] text-slate-700 dark:text-zinc-200 hover:text-white dark:hover:text-zinc-950 transition-all duration-300 focus:ring-4 focus:ring-[#b08968]/30 focus:outline-none shadow-sm dark:shadow-md border border-slate-200 dark:border-none">
+              <div className="flex items-center gap-6 premium-glass-panel p-2.5 rounded-full border border-border-subtle shadow-sm relative z-10">
+                <button onClick={() => setPorcionesDeseadas(p => Math.max(1, p - 1))} aria-label="Restar porción" className="p-3 rounded-full bg-surface-muted hover:bg-brand-primary text-text-muted hover:text-white transition-all duration-300 focus:ring-4 focus:ring-brand-primary/20 focus:outline-none shadow-sm border border-border-subtle">
                   <Minus className="w-5 h-5" />
                 </button>
                 <div className="flex flex-col items-center justify-center w-12">
-                   <span className="font-extrabold text-3xl text-[#b08968] dark:text-orange-200 leading-none">{porcionesDeseadas}</span>
+                  <span className="font-extrabold text-3xl text-brand-primary leading-none">{porcionesDeseadas}</span>
                 </div>
-                <button onClick={() => setPorcionesDeseadas(p => Math.min(20, p + 1))} className="p-3 rounded-full bg-slate-100 dark:bg-zinc-800 hover:bg-[#b08968] dark:hover:bg-[#b08968] text-slate-700 dark:text-zinc-200 hover:text-white dark:hover:text-zinc-950 transition-all duration-300 focus:ring-4 focus:ring-[#b08968]/30 focus:outline-none shadow-sm dark:shadow-md border border-slate-200 dark:border-none">
+                <button onClick={() => setPorcionesDeseadas(p => Math.min(20, p + 1))} aria-label="Sumar porción" className="p-3 rounded-full bg-surface-muted hover:bg-brand-primary text-text-muted hover:text-white transition-all duration-300 focus:ring-4 focus:ring-brand-primary/20 focus:outline-none shadow-sm border border-border-subtle">
                   <Plus className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            <div className="premium-glass-panel p-8 rounded-[2rem] border border-slate-200 dark:border-zinc-800 shadow-sm mb-8 w-full">
-              <h2 className="text-3xl font-serif font-bold mb-6 text-slate-800 dark:text-orange-200 border-b border-slate-200 dark:border-zinc-700 pb-4">Ingredientes</h2>
-              <ul className="space-y-4 list-none max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+            <div className="premium-glass-panel p-8 rounded-[2rem] border border-border-subtle shadow-sm mb-8 w-full overflow-visible">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-border-subtle pb-4">
+                <div>
+                  <h2 className="text-3xl font-serif font-bold text-text-main">Ingredientes</h2>
+                  <p className="text-xs text-text-muted mt-1 flex items-center gap-1.5">
+                    <Store className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span>Coloca el cursor sobre cualquier ingrediente para ver dónde comprarlo cerca de tu ubicación.</span>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleRequestLocation}
+                  disabled={isLocating}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-xs cursor-pointer shrink-0 ${
+                    userLocation
+                      ? 'bg-emerald-600 text-white shadow-emerald-600/20'
+                      : 'bg-emerald-500/15 hover:bg-emerald-600 text-emerald-700 dark:text-emerald-300 hover:text-white border border-emerald-500/30'
+                  }`}
+                >
+                  {userLocation ? (
+                    <>
+                      <Navigation className="w-3.5 h-3.5" />
+                      <span>Ubicación GPS activa</span>
+                    </>
+                  ) : (
+                    <>
+                      <Locate className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin' : ''}`} />
+                      <span>{isLocating ? 'Localizando...' : 'Usar mi ubicación'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <ul className="space-y-4 list-none overflow-visible">
                 {ingredientsState.map(ing => {
                   const scale = porcionesDeseadas / (receta.numero_porcion || 1);
                   let text = ing.text;
+                  const structuredName = ing.isDetailed && ing.data ? ing.data.ingrediente?.nombre : undefined;
                   if (ing.isDetailed && ing.data) {
-                    const scaledCantidad = (parseFloat(ing.data.cantidad) * scale).toFixed(1).replace(/\.0$/, '');
-                    text = `${scaledCantidad} ${ing.data.unidad} de ${ing.data.ingrediente.nombre}`;
+                    const scaledCantidad = parseFloat(ing.data.cantidad) * scale;
+                    text = formatScaledIngredient(scaledCantidad, ing.data.unidad, structuredName || 'ingrediente');
+                  } else if (!ing.isDetailed && ing.text && scale !== 1) {
+                    text = formatScaledIngredientText(ing.text, scale);
                   }
                   return (
-                    <li key={ing.id} onClick={() => toggleCheck("ingredients", ing.id)} className={`flex items-start gap-4 p-3 rounded-xl cursor-pointer transition-all ${ing.checked ? "opacity-50 grayscale bg-slate-100 dark:bg-zinc-950/30" : "premium-glass-panel hover:bg-slate-50 dark:hover:bg-zinc-800 border border-slate-200 dark:border-zinc-800 shadow-sm dark:shadow-none"}`}>
-                      <span className={`mt-0.5 shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${ing.checked ? 'bg-[#b08968] border-[#b08968] text-white dark:text-zinc-950' : 'border-slate-300 dark:border-orange-900/40 text-transparent'}`}>✓</span>
-                      <span className={`flex-1 text-lg font-medium tracking-tight ${ing.checked ? "line-through text-slate-400 dark:text-orange-200/60" : "text-slate-700 dark:text-zinc-200"}`}>{text}</span>
-                    </li>
+                    <IngredientMarketplaceRow
+                      key={ing.id}
+                      id={ing.id}
+                      text={text}
+                      structuredName={structuredName}
+                      checked={ing.checked}
+                      onToggleCheck={() => toggleCheck("ingredients", ing.id)}
+                      userLocation={userLocation}
+                      isLocating={isLocating}
+                      onRequestLocation={handleRequestLocation}
+                    />
                   );
                 })}
               </ul>
@@ -287,40 +620,39 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
           <div className="animate-fade-in z-10 relative">
             {receta.video_url && (
               <div className="flex gap-4 mb-8 justify-center">
-                  <button onClick={() => setMediaTab('steps')} className={`px-6 py-2 rounded-full font-bold transition-all shadow-sm ${mediaTab === 'steps' ? 'bg-[#b08968] text-white' : 'bg-slate-200 dark:bg-zinc-900 text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200'}`}>Pasos a Seguir</button>
-                  <button onClick={() => setMediaTab('video')} className={`px-6 py-2 rounded-full font-bold transition-all shadow-sm ${mediaTab === 'video' ? 'bg-[#b08968] text-white' : 'bg-slate-200 dark:bg-zinc-900 text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200'}`}>Video Tutorial</button>
+                <button onClick={() => setMediaTab('steps')} className={`px-6 py-2.5 rounded-full font-bold transition-all shadow-sm ${mediaTab === 'steps' ? 'bg-brand-primary text-white shadow-brand-primary/25' : 'bg-surface-muted text-text-muted hover:text-text-main border border-border-subtle'}`}>Pasos a Seguir</button>
+                <button onClick={() => setMediaTab('video')} className={`px-6 py-2.5 rounded-full font-bold transition-all shadow-sm ${mediaTab === 'video' ? 'bg-brand-primary text-white shadow-brand-primary/25' : 'bg-surface-muted text-text-muted hover:text-text-main border border-border-subtle'}`}>Video Tutorial</button>
               </div>
             )}
-            
-            <div className="bg-slate-50 dark:bg-zinc-900 p-8 rounded-[2rem] border border-slate-200 dark:border-zinc-700 shadow-sm mb-8">
+
+            <div className="premium-glass-panel p-8 rounded-[2rem] border border-border-subtle shadow-sm mb-8">
               {mediaTab === 'steps' || !receta.video_url ? (
-                  <>
-                    <h2 className="text-3xl font-serif font-bold mb-6 text-slate-800 dark:text-orange-200 border-b border-slate-200 dark:border-zinc-700 pb-4">Preparación</h2>
-                    <ul className="list-inside space-y-6 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
-                  {stepsState.map(step => (
-                        <li key={step.id} onClick={() => toggleCheck("steps", step.id)} className={`p-4 border-l-4 cursor-pointer transition-all rounded-r-xl ${step.checked ? "border-slate-300 dark:border-orange-900/40 text-slate-400 dark:text-orange-200/60 line-through opacity-50 bg-slate-100 dark:bg-zinc-900" : "border-[#b08968] text-slate-700 dark:text-zinc-200 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 shadow-sm dark:shadow-none"}`}>
-                          <span className="font-bold text-lg text-[#b08968] dark:text-orange-200 block mb-2">Paso {step.id + 1}</span> 
-                          <p className="leading-relaxed">{step.text}</p>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
+                <>
+                  <h2 className="text-3xl font-serif font-bold mb-6 text-text-main border-b border-border-subtle pb-4">Preparación</h2>
+                  <ul className="list-inside space-y-6 max-h-[60vh] overflow-y-auto pr-4 custom-scrollbar">
+                    {stepsState.map(step => (
+                      <li key={step.id} onClick={() => toggleCheck("steps", step.id)} className={`p-5 border-l-4 cursor-pointer transition-all rounded-r-xl border-r border-t border-b ${step.checked ? "border-l-border-subtle border-border-subtle text-text-subtle line-through opacity-50 bg-surface-muted/20" : "border-l-brand-primary border-border-subtle text-text-main bg-surface-card hover:bg-surface-muted/60 shadow-sm"}`}>
+                        <span className="font-bold text-lg text-brand-primary block mb-2">Paso {step.id + 1}</span>
+                        <p className="leading-relaxed text-text-muted">{step.text}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               ) : (
-                  <>
-                    <h2 className="text-3xl font-serif font-bold mb-6 text-slate-800 dark:text-orange-200">Video Tutorial</h2>
-                    <div className="relative h-0 pb-[56.25%] rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-zinc-700">
-                      <iframe src={receta.video_url} frameBorder="0" allowFullScreen className="absolute top-0 left-0 w-full h-full"></iframe>
-                    </div>
-                  </>
+                <>
+                  <h2 className="text-3xl font-serif font-bold mb-6 text-text-main border-b border-border-subtle pb-4">Video Tutorial</h2>
+                  <VideoEmbed url={receta.video_url} />
+                </>
               )}
             </div>
 
             {receta.sugerencias && (
-               <div className="bg-orange-50 dark:bg-[#b08968]/10 p-6 rounded-2xl border border-orange-200 dark:border-[#b08968]/30 shadow-sm">
-                  <h3 className="font-bold text-orange-800 dark:text-orange-200 mb-2 flex items-center gap-2"><ChefHat className="w-5 h-5"/> Sugerencia del Chef</h3>
-                  <p className="text-orange-900/80 dark:text-orange-100 italic leading-relaxed">{receta.sugerencias}</p>
-               </div>
+              <div className="bg-brand-subtle/40 dark:bg-brand-subtle/20 p-6 rounded-2xl border border-brand-primary/25 shadow-sm">
+                <h3 className="font-bold text-brand-primary mb-2 flex items-center gap-2"><ChefHat className="w-5 h-5" /> Sugerencia del Chef</h3>
+                <p className="text-text-muted italic leading-relaxed">{receta.sugerencias}</p>
+              </div>
             )}
+
           </div>
         );
       default:
@@ -329,61 +661,105 @@ function RecetaDetalleContent({ idReceta, receta: recetaProp, modoLocal = false,
   };
 
   return (
-    <div className="min-h-screen flex flex-col pt-12 pb-12 transition-colors duration-500">
-      <div className="max-w-[1400px] mx-auto w-full px-4 lg:px-8">
-        <div className="premium-glass-wrapper rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col lg:flex-row min-h-[850px] border border-slate-200 dark:border-zinc-800 relative">
-          
-          <div className="lg:w-[320px] xl:w-[380px] p-8 relative flex flex-col justify-between premium-glass-panel border-r border-slate-200 dark:border-zinc-800 z-10">
+    <div className={`flex flex-col transition-colors duration-500 w-full animate-in fade-in duration-300 ${isPreview ? 'p-0 pt-16 md:pt-20' : 'min-h-screen pt-12 pb-12'}`}>
+      <div className={`w-full ${isPreview ? 'px-0' : 'max-w-[1400px] mx-auto px-4 lg:px-8'}`}>
+        <div className={`premium-glass-wrapper w-full shadow-2xl overflow-hidden flex flex-col lg:flex-row border border-border-subtle relative ${isPreview ? 'rounded-[2rem] min-h-0' : 'rounded-[2.5rem] min-h-[850px]'}`}>
+
+          <div className={`${isPreview ? 'lg:w-[240px] xl:w-[280px] p-6' : 'lg:w-[320px] xl:w-[380px] p-8'} relative flex flex-col justify-between premium-glass-panel border-r border-border-subtle z-10`}>
             <div>
-              <div className="flex items-center gap-3 mb-10">
-                <div className="p-3 bg-[#b08968]/10 dark:bg-[#b08968]/20 rounded-xl">
-                  <BookOpen className="w-8 h-8 text-[#b08968] dark:text-orange-200" />
+              <div className={`flex items-center gap-4 border-b border-border-subtle ${isPreview ? 'mb-6 pb-4' : 'mb-12 pb-8'}`}>
+                <div className={`${isPreview ? 'w-10 h-10' : 'w-14 h-14'} bg-gradient-to-br from-brand-primary to-brand-hover rounded-2xl flex items-center justify-center shadow-lg shadow-brand-primary/25`}>
+                  <BookOpen className={`${isPreview ? 'w-5 h-5' : 'w-7 h-7'} text-white`} />
                 </div>
-                <h2 className="text-2xl font-serif font-extrabold text-slate-800 dark:text-zinc-200 tracking-widest uppercase">El Libro</h2>
+                <div>
+                  <h2 className={`${isPreview ? 'text-lg' : 'text-2xl'} font-serif font-black text-text-main tracking-widest uppercase mb-1`}>El Libro</h2>
+                </div>
               </div>
               <div className="space-y-4">
                 {tabs.map(tab => {
                   const isActive = currentPage === tab.id;
                   return (
-                    <button key={tab.id} onClick={() => setCurrentPage(tab.id)} className={`w-full text-left flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-300 font-medium tracking-wide group ${isActive ? 'bg-[#b08968] text-white dark:text-zinc-950 shadow-lg shadow-[#b08968]/20' : 'text-slate-500 dark:text-orange-200/60 hover:bg-slate-200 dark:hover:bg-zinc-900 hover:text-slate-800 dark:hover:text-zinc-200'}`}>
-                      <tab.icon className={`w-5 h-5 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
+                    <button key={tab.id} onClick={() => setCurrentPage(tab.id)} className={`w-full text-left flex items-center gap-4 rounded-2xl transition-all duration-300 font-semibold tracking-wide group ${isPreview ? 'px-3 py-3 text-sm' : 'px-5 py-4'} ${isActive ? 'bg-brand-primary text-white shadow-lg shadow-brand-primary/25' : 'text-text-muted hover:bg-surface-muted hover:text-text-main'}`}>
+                      <tab.icon className={`${isPreview ? 'w-4 h-4' : 'w-5 h-5'} transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
                       <span>{tab.name}</span>
                     </button>
                   );
                 })}
               </div>
             </div>
-            
-            <div className="pt-8 mt-12 border-t border-slate-200 dark:border-zinc-700">
-              <div className="flex justify-center gap-6">
-                <button onClick={handleFavorite} className={`p-4 rounded-full shadow-lg transition-all duration-300 hover:-translate-y-1 ${isFavorite ? 'bg-red-500 text-white shadow-red-500/20' : 'bg-slate-100 dark:bg-zinc-900 text-slate-400 dark:text-orange-200/60 hover:bg-slate-200 dark:hover:bg-zinc-800 hover:text-red-500 dark:hover:text-red-400 border border-slate-200 dark:border-zinc-700'}`} title="Like">
-                  <Heart className={`w-6 h-6 ${isFavorite ? 'fill-current' : ''}`} />
+
+            <div className={`${isPreview ? 'pt-4 mt-6' : 'pt-8 mt-12'} border-t border-border-subtle`}>
+              <div className={`flex justify-center ${isPreview ? 'gap-3' : 'gap-4 sm:gap-6'}`}>
+                <button onClick={handleFavorite} aria-label={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"} className={`${isPreview ? 'p-3' : 'p-3.5 sm:p-4'} rounded-full shadow-lg transition-all duration-300 hover:-translate-y-1 ${isFavorite ? 'bg-red-500 text-white shadow-red-500/20' : 'bg-surface-muted text-text-muted hover:bg-surface-elevated hover:text-red-500 dark:hover:text-red-400 border border-border-subtle'}`} title={isFavorite ? "Ya no me gusta" : "Me gusta"}>
+                  <Heart className={`${isPreview ? 'w-5 h-5' : 'w-5 h-5 sm:w-6 sm:h-6'} ${isFavorite ? 'fill-current' : ''}`} />
                 </button>
-                <button onClick={handleSave} className={`p-4 rounded-full shadow-lg transition-all duration-300 hover:-translate-y-1 ${isSaved ? 'bg-yellow-500 text-white dark:text-zinc-950 shadow-yellow-500/20' : 'bg-slate-100 dark:bg-zinc-900 text-slate-400 dark:text-orange-200/60 hover:bg-slate-200 dark:hover:bg-zinc-800 hover:text-yellow-500 border border-slate-200 dark:border-zinc-700'}`} title="Guardar">
-                  <Bookmark className={`w-6 h-6 ${isSaved ? 'fill-current' : ''}`} />
+                <button onClick={handleSave} aria-label={isSaved ? "Quitar de Guardados" : "Guardar Receta"} className={`${isPreview ? 'p-3' : 'p-3.5 sm:p-4'} rounded-full shadow-lg transition-all duration-300 hover:-translate-y-1 ${isSaved ? 'bg-amber-500 text-white shadow-amber-500/20' : 'bg-surface-muted text-text-muted hover:bg-surface-elevated hover:text-amber-500 dark:hover:text-amber-400 border border-border-subtle'}`} title={isSaved ? "Quitar de Guardados" : "Guardar Receta"}>
+                  <Bookmark className={`${isPreview ? 'w-5 h-5' : 'w-5 h-5 sm:w-6 sm:h-6'} ${isSaved ? 'fill-current' : ''}`} />
                 </button>
-                <button onClick={handleShare} className="p-4 rounded-full bg-slate-100 dark:bg-zinc-900 text-slate-400 dark:text-orange-200/60 shadow-lg hover:bg-slate-200 dark:hover:bg-zinc-800 hover:text-slate-800 dark:hover:text-zinc-200 transition-all duration-300 hover:-translate-y-1 border border-slate-200 dark:border-zinc-700" title="Compartir">
-                  <Share2 className="w-6 h-6" />
+                <button onClick={handleShare} aria-label="Compartir receta" className={`${isPreview ? 'p-3' : 'p-3.5 sm:p-4'} rounded-full bg-surface-muted text-text-muted shadow-lg hover:bg-surface-elevated hover:text-brand-primary transition-all duration-300 hover:-translate-y-1 border border-border-subtle`} title="Compartir">
+                  <Share2 className={`${isPreview ? 'w-5 h-5' : 'w-5 h-5 sm:w-6 sm:h-6'}`} />
                 </button>
+                {!isPreview && (
+                  <button 
+                    onClick={() => document.getElementById('comentarios')?.scrollIntoView({ behavior: 'smooth' })} 
+                    aria-label="Ir a comentarios" 
+                    className={`${isPreview ? 'p-3' : 'p-3.5 sm:p-4'} rounded-full bg-surface-muted text-text-muted shadow-lg hover:bg-surface-elevated hover:text-brand-primary transition-all duration-300 hover:-translate-y-1 border border-border-subtle`} 
+                    title="Ver comentarios"
+                  >
+                    <MessageCircle className={`${isPreview ? 'w-5 h-5' : 'w-5 h-5 sm:w-6 sm:h-6'}`} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
 
-          <div className="flex-1 p-8 md:p-12 xl:p-16 overflow-y-auto relative bg-transparent custom-scrollbar">
-            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#b08968] opacity-[0.015] dark:opacity-[0.03] rounded-full blur-[100px] pointer-events-none"></div>
+
+          <div className={`flex-1 overflow-y-auto relative bg-transparent custom-scrollbar ${isPreview ? 'p-4 md:p-6' : 'p-8 md:p-12 xl:p-16'}`}>
             <PageContent />
+
+            {!isPreview && (
+              <AdSenseBanner
+                slot="9961213164"
+                format="auto"
+                className="mt-10 rounded-2xl"
+              />
+            )}
+
+            <CollectionPickerModal
+              isOpen={isCollectionModalOpen}
+              onOpenChange={setIsCollectionModalOpen}
+              recetaId={idReceta}
+              onSaveComplete={handleCollectionSaveComplete}
+            />
+
+            <GeolocationConsentModal
+              isOpen={showGeoConsentModal}
+              onAccept={handleAcceptGeoConsent}
+              onDecline={handleDeclineGeoConsent}
+            />
           </div>
 
         </div>
+
+        {!isPreview && (
+          <div className="mt-12 space-y-12">
+            <div id="productos-cocina" className="w-full">
+              <AffiliateCarousel />
+            </div>
+            <div id="comentarios" className="w-full pb-8">
+              <CommentSection recipeId={idReceta} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-export default function RecetaDetalle(props) {
+export default function RecetaDetalle({ isPreview = false, ...props }) {
   return (
     <AuthProvider>
-      <RecetaDetalleContent {...props} />
+      <RecetaDetalleContent isPreview={isPreview} {...props} />
     </AuthProvider>
   );
 }

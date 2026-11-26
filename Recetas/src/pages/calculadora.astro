@@ -1,0 +1,43 @@
+---
+import "@/styles/global.css";
+import Footer from "@/shared/layout/Footer";
+import Navbar from "@/shared/layout/Navbar";
+import MacroCalculator from "@/features/macros/MacroCalculator";
+import AffiliateCarousel from "@/shared/ui/AffiliateCarousel";
+import AdSenseBanner from "@/shared/ui/AdSenseBanner";
+import BaseHead from "@/shared/layout/BaseHead.astro";
+---
+
+<html lang="es">
+  <head>
+    <BaseHead 
+      title="Calculadora de Macros – ChileBite" 
+      description="Calcula los macronutrientes de tu plato combinando ingredientes de nuestra base de datos normalizada USDA. Proteínas, carbohidratos, grasas y calorías en tiempo real."
+    />
+    <link rel="preconnect" href="https://tnzpojvhsxjzfachozid.supabase.co" crossorigin />
+    <link rel="dns-prefetch" href="https://tnzpojvhsxjzfachozid.supabase.co" />
+  </head>
+
+  <body class="transition-colors duration-300 min-h-screen flex flex-col">
+    <Navbar client:only="react" />
+
+    <main class="flex-grow pt-20 pb-12 min-h-[calc(100vh-80px)]">
+      <MacroCalculator client:load />
+
+      <!-- ── Monetización: Carrusel Premium ── -->
+      <AffiliateCarousel client:visible />
+      
+      <div class="max-w-4xl mx-auto px-4 mt-8">
+        <div className="flex justify-center">
+          <AdSenseBanner 
+            client:visible 
+            slot="9961213164" 
+            className="w-full max-w-2xl"
+          />
+        </div>
+      </div>
+    </main>
+
+    <Footer client:visible />
+  </body>
+</html>

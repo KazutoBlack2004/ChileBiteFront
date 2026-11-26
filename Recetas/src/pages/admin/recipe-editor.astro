@@ -2,48 +2,29 @@
 import "@/styles/global.css";
 import Footer from '@/shared/layout/Footer';
 import Navbar from '@/shared/layout/Navbar';
-import RecipeEditor from '@/features/recipes/components/RecipeEditor';
+import RecipeEditorComponent from '@/features/recipes/components/RecipeEditor';
+import BaseHead from '@/shared/layout/BaseHead.astro';
 ---
 
 
 <html lang="es">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Creación de Recetas</title>
-    <!-- Evitar FOUC en modo oscuro -->
-    <script is:inline>
-      const theme = (() => {
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
-          return localStorage.getItem('theme');
-        }
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          return 'dark';
-        }
-        return 'light';
-      })();
-      if (theme === 'dark') {
-        document.documentElement.classList.add('dark');
-      } else {
-        document.documentElement.classList.remove('dark');
-      }
-    </script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <BaseHead robots="noindex, nofollow" title="Creación de Recetas - ChileBite" description="Panel de creación y edición de recetas para ChileBite." />
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1,-50..200&display=swap" rel="stylesheet" />
   </head>
-<Navbar client:only="react" />
-  <body class="bg-[#f7f7f6] dark:bg-[#0f1115] font-['Inter'] transition-colors duration-300 antialiased min-h-screen">
+  <body class="font-['Inter'] transition-colors duration-300 antialiased min-h-screen flex flex-col">
+    <Navbar client:only="react" />
     <!-- Wrapper normal debajo del navbar -->
-    <main class="mt-20 flex-1">
+    <main class="mt-20 flex-1 min-h-[calc(100vh-80px)]">
         <div class="py-12">
-            <RecipeEditor client:only="react" />
-            
+            <RecipeEditorComponent client:only="react">
+                <div slot="fallback" class="w-full flex flex-col items-center justify-center p-20 animate-pulse text-text-muted">
+                    <div class="w-12 h-12 border-4 border-border-subtle border-t-brand-primary dark:border-t-[#f0a262] rounded-full animate-spin mb-4"></div>
+                    <p class="font-bold text-sm tracking-widest uppercase text-text-muted">Cargando editor de recetas...</p>
+                </div>
+            </RecipeEditorComponent>
         </div>
     </main>
+    <Footer client:visible />
   </body>
-  <Footer/>
 </html>

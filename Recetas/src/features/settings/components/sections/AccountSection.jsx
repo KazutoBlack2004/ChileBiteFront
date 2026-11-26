@@ -1,0 +1,51 @@
+import React, { useState } from "react";
+import { Mail } from "lucide-react";
+import { toast } from "@heroui/react";
+import { supabase } from '@/lib/supabaseClient';
+import { Section, InfoRow, Row, SubmitBtn, BRAND } from "./SettingsShared";
+
+export function AccountSection({ user }) {
+  const [emailForm, setEmailForm] = useState({ email: "" });
+  const [isChangingEmail, setIsChangingEmail] = useState(false);
+
+  const handleChangeEmail = async (e) => {
+    e.preventDefault();
+    if (!emailForm.email.includes("@")) { toast.danger("Ingresa un email válido"); return; }
+    setIsChangingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser(
+        { email: emailForm.email },
+        { emailRedirectTo: `${window.location.origin}/settings` }
+      );
+      if (error) throw error;
+      toast.success("Te enviamos un enlace de confirmación al nuevo correo.");
+      setEmailForm({ email: "" });
+    } catch (err) {
+      toast.danger(err.message || "Error al cambiar el email");
+    } finally {
+      setIsChangingEmail(false);
+    }
+  };
+
+  return (
+    <Section title="Cuenta">
+      <InfoRow icon={Mail} label="Correo electrónico actual" value={user.email} />
+
+      <Row icon={Mail} label="Cambiar correo" sublabel="Recibirás un email de confirmación" iconColor="#6366f1">
+        <form onSubmit={handleChangeEmail} className="space-y-3 mt-2">
+          <input
+            type="email"
+            value={emailForm.email}
+            onChange={e => setEmailForm({ email: e.target.value })}
+            placeholder="nuevo@correo.com"
+            className="w-full px-4 py-3 rounded-2xl text-sm border border-border-subtle dark:border-zinc-700/80 bg-white dark:bg-[#18181d] text-text-main dark:text-zinc-100 placeholder:text-text-muted/50 dark:placeholder:text-zinc-500 focus:outline-none focus:border-brand-primary dark:focus:border-[#f0a262] focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[#f0a262]/20 transition-all"
+          />
+          <p className="text-xs text-text-muted dark:text-zinc-400 leading-relaxed">
+            Te enviaremos un link de confirmación a tu nueva dirección. El cambio solo aplicará cuando confirmes el link.
+          </p>
+          <SubmitBtn loading={isChangingEmail} icon={Mail} label="Solicitar cambio" />
+        </form>
+      </Row>
+    </Section>
+  );
+}

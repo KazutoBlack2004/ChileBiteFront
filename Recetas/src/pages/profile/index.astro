@@ -3,40 +3,42 @@ import "@/styles/global.css";
 import Footer from '@/shared/layout/Footer';
 import Navbar from '@/shared/layout/Navbar'
 import UserProfile from '@/features/profiles/components/UserProfile'
-
+import BaseHead from '@/shared/layout/BaseHead.astro';
 ---
 
 <html lang="es">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Mi Perfil - ChileBite</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    
-    <!-- Evitar FOUC en modo oscuro -->
-    <script is:inline>
-      const theme = (() => {
-        if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
-          return localStorage.getItem('theme');
-        }
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-          return 'dark';
-        }
-        return 'light';
-      })();
-    
-      if (theme === 'light') {
-        document.documentElement.classList.remove('dark');
-      } else {
-        document.documentElement.classList.add('dark');
-      }
-    </script>
+    <BaseHead robots="noindex, nofollow" title="Mi Perfil - ChileBite" description="Visualiza y edita tu perfil de usuario en ChileBite." />
 </head>
-<body class="bg-stone-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200 transition-colors duration-300 min-h-screen flex flex-col">
+<body class="transition-colors duration-300 min-h-screen flex flex-col">
     <Navbar client:only="react" />
     
-    <main class="flex-grow pt-24 pb-12 px-4 max-w-7xl mx-auto w-full">
-        <UserProfile client:only="react" />
+    <main class="flex-grow pt-24 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full">
+        <UserProfile client:only="react">
+            <div slot="fallback" class="w-full space-y-8 animate-pulse">
+                <div class="bg-white dark:bg-[#202026] rounded-3xl border border-border-subtle dark:border-zinc-800 p-6 sm:p-8 shadow-sm">
+                    <div class="flex flex-col sm:flex-row items-start gap-6 sm:gap-8">
+                        <div class="w-28 h-28 rounded-full shrink-0 bg-surface-muted dark:bg-zinc-800"></div>
+                        <div class="flex-1 space-y-3 pt-2 w-full">
+                            <div class="w-56 h-8 rounded-xl bg-surface-muted dark:bg-zinc-800"></div>
+                            <div class="w-32 h-4 rounded-lg bg-surface-muted dark:bg-zinc-800"></div>
+                            <div class="w-full max-w-md h-4 rounded-lg bg-surface-muted dark:bg-zinc-800"></div>
+                            <div class="w-2/3 max-w-sm h-4 rounded-lg bg-surface-muted dark:bg-zinc-800"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-4">
+                    <div class="w-48 h-6 rounded-lg bg-surface-muted dark:bg-zinc-800"></div>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+                        <div class="aspect-square rounded-2xl bg-surface-muted dark:bg-zinc-800"></div>
+                        <div class="aspect-square rounded-2xl bg-surface-muted dark:bg-zinc-800"></div>
+                        <div class="aspect-square rounded-2xl bg-surface-muted dark:bg-zinc-800"></div>
+                        <div class="aspect-square rounded-2xl bg-surface-muted dark:bg-zinc-800"></div>
+                        <div class="aspect-square rounded-2xl bg-surface-muted dark:bg-zinc-800"></div>
+                    </div>
+                </div>
+            </div>
+        </UserProfile>
     </main>
 
     <Footer/>

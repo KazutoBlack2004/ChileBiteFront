@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Tooltip, Modal, Button, useOverlayState } from "@heroui/react";
 import { useAuth } from '@/features/auth/context/AuthContext';
+import { supabase } from '@/lib/supabaseClient';
 
 export default function AdminFloatingMenu({ selectedRecipes = [], onDeleteSuccess, onClearSelection }) {
     const { session } = useAuth();
@@ -13,19 +14,22 @@ export default function AdminFloatingMenu({ selectedRecipes = [], onDeleteSucces
     const handleDelete = async (onClose) => {
         setIsDeleting(true);
         try {
-            const token = session?.access_token || localStorage.getItem("access_token");
-            const headers = { "Authorization": `Bearer ${token}` };
-            
-            for (const id of selectedRecipes) {
-                await fetch(`http://127.0.0.1:8000/api/recetas/${id}/`, {
-                    method: 'DELETE',
-                    headers
-                });
-            }
+            // Borrar referencias en cascada manualmente
+            await supabase.from('core_recetaingrediente').delete().in('receta_id', selectedRecipes);
+            await supabase.from('core_receta_estilos_vida').delete().in('receta_id', selectedRecipes);
+            await supabase.from('core_coleccion_receta').delete().in('receta_id', selectedRecipes);
+            await supabase.from('core_recetalike').delete().in('receta_id', selectedRecipes);
+
+            const { error } = await supabase
+                .from('core_receta')
+                .delete()
+                .in('id', selectedRecipes);
+            if (error) throw error;
             onDeleteSuccess && onDeleteSuccess(selectedRecipes);
             onClose();
         } catch (error) {
             console.error("Error al eliminar", error);
+            alert("Hubo un error al eliminar las recetas: " + error.message);
         } finally {
             setIsDeleting(false);
         }
@@ -57,6 +61,19 @@ export default function AdminFloatingMenu({ selectedRecipes = [], onDeleteSucces
             color: "text-white", 
             bg: "bg-[#4A5568]",
             bgHover: "hover:bg-[#2D3748]"
+        },
+        {
+            id: 'ingredients',
+            label: "Gestionar Ingredientes",
+            icon: (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h1.5M9 14.25L15.75 21a2.25 2.25 0 003.182 0l1.06-1.06a2.25 2.25 0 000-3.182L13.25 10m-3.969-3.969l1.06-1.06a2.25 2.25 0 000-3.182L8.25 3.75m-4.5 9h1M12 12v.01M3.75 20.25v-1.5M15 6h.01M6.75 10.5h.01" />
+                </svg>
+            ),
+            action: () => window.location.href = '/admin/ingredient-manager',
+            color: "text-white", 
+            bg: "bg-[#2E8B57]",
+            bgHover: "hover:bg-[#236B43]"
         }
     ];
 
@@ -106,16 +123,16 @@ export default function AdminFloatingMenu({ selectedRecipes = [], onDeleteSucces
                     </span>
                 </div>
 
-                {/* Dinamic Icons */}
                 {adminActions.map((item) => (
                     <Tooltip key={item.id} content={item.label} placement="top" className="font-semibold text-xs rounded-xl shadow-lg border border-gray-100 dark:border-gray-800 mt-1">
-                        <button
-                            onClick={item.action}
-                            className={`w-11 h-11 flex items-center justify-center rounded-full transition-all duration-300 ${item.color} ${item.bg} ${item.bgHover} shadow-md hover:scale-105 hover:-translate-y-1 active:scale-95`}
+                        <Button
+                            isIconOnly
+                            onPress={item.action}
+                            className={`flex items-center justify-center rounded-full transition-all duration-300 ${item.color} ${item.bg} ${item.bgHover} shadow-md hover:scale-105 hover:-translate-y-1 active:scale-95`}
                             aria-label={item.label}
                         >
                             {item.icon}
-                        </button>
+                        </Button>
                     </Tooltip>
                 ))}
             </div>
@@ -124,7 +141,6 @@ export default function AdminFloatingMenu({ selectedRecipes = [], onDeleteSucces
                 <Modal.Backdrop isOpen={state.isOpen} onOpenChange={state.setOpen}>
                     <Modal.Container>
                         <Modal.Dialog>
-                            <Modal.CloseTrigger />
                             <Modal.Header>
                                 <Modal.Heading className="text-red-600">Confirmar Eliminación</Modal.Heading>
                             </Modal.Header>

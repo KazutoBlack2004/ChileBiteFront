@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from '@/lib/supabaseClient';
 import { getProfile } from '@/lib/profileService';
+import { isPlaceholderAvatar } from '@/shared/ui/BlobatarAvatar';
 
 const AuthContext = createContext();
 
@@ -36,10 +37,28 @@ export const AuthProvider = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchSupabaseProfile = async (userId) => {
+  const fetchSupabaseProfile = async (userId, currentUserObj) => {
     if (!userId) return;
     try {
       const data = await getSharedProfile(userId);
+      const googleAvatar = currentUserObj?.user_metadata?.avatar_url || currentUserObj?.user_metadata?.picture;
+      
+      if (data) {
+        const hasCustomDbAvatar = data.avatar_url && !isPlaceholderAvatar(data.avatar_url);
+        const hasValidGoogleAvatar = googleAvatar && !isPlaceholderAvatar(googleAvatar);
+
+        if (!hasCustomDbAvatar && hasValidGoogleAvatar) {
+          // Si el usuario tiene una foto real en Google pero no en Supabase, sincronizarla
+          supabase.from('profiles').update({ avatar_url: googleAvatar }).eq('id', userId).then();
+          data.avatar_url = googleAvatar;
+        } else if (!hasCustomDbAvatar) {
+          // Si el valor en DB es un placeholder legado (ui-avatars, default-user), limpiarlo en Supabase y normalizar a null
+          if (data.avatar_url) {
+            supabase.from('profiles').update({ avatar_url: null }).eq('id', userId).then();
+          }
+          data.avatar_url = null;
+        }
+      }
       setProfile(data);
     } catch (error) {
       console.error("[Auth] Error al cargar perfil desde Supabase:", error.message);
@@ -62,7 +81,7 @@ export const AuthProvider = ({ children }) => {
         }
 
         if (session?.user?.id && mounted) {
-          await fetchSupabaseProfile(session.user.id);
+          await fetchSupabaseProfile(session.user.id, session.user);
         } else if (mounted) {
           setProfile(null);
         }
@@ -79,6 +98,11 @@ export const AuthProvider = ({ children }) => {
 
     // 2. Suscripción a eventos
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      // Sincronizar Caché Global para las navegaciones de ASTRO sin recarga
+      if (['SIGNED_IN', 'SIGNED_OUT', 'TOKEN_REFRESHED', 'USER_UPDATED', 'INITIAL_SESSION'].includes(event)) {
+          sharedSessionPromise = Promise.resolve({ data: { session: currentSession }, error: null });
+      }
+
       if (!mounted) return;
 
       if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") {
@@ -91,6 +115,8 @@ export const AuthProvider = ({ children }) => {
       setUser(currentSession?.user ?? null);
 
       if (event === "SIGNED_OUT") {
+        sharedProfilePromise = null;
+        lastProfileUserId = null;
         setProfile(null);
         setLoading(false);
         return;
@@ -98,7 +124,7 @@ export const AuthProvider = ({ children }) => {
 
       if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
         if (currentSession?.user?.id) {
-          await fetchSupabaseProfile(currentSession.user.id);
+          await fetchSupabaseProfile(currentSession.user.id, currentSession.user);
         } else {
           setProfile(null);
         }
@@ -139,6 +165,33 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
+   * Desvincula Google del usuario actual.
+   * REGLA: Solo se puede desvincular si el usuario tiene una identidad 'email'
+   * (contraseña establecida). De lo contrario, quedaría sin forma de acceder.
+   */
+  const unlinkGoogle = async () => {
+    if (!user) return { error: new Error("Debes estar autenticado.") };
+
+    // Obtener identidades actuales
+    const { data: identitiesData, error: fetchError } = await supabase.auth.getUserIdentities();
+    if (fetchError) return { error: fetchError };
+
+    const identities = identitiesData?.identities ?? [];
+    const googleIdentity = identities.find((id) => id.provider === "google");
+
+    if (!googleIdentity) {
+      return { error: new Error("No tienes Google vinculado.") };
+    }
+
+    try {
+      const { error } = await supabase.auth.unlinkIdentity(googleIdentity);
+      return { error };
+    } catch (error) {
+      return { error };
+    }
+  };
+
+  /**
    * Login con email + password.
    * Si el error es que el email ya está vinculado a Google, lanza mensaje amigable.
    */
@@ -154,6 +207,37 @@ export const AuthProvider = ({ children }) => {
         return { data: null, error: friendlyError };
       }
     }
+
+    if (!error) {
+      const { data: assurance, error: assuranceError } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (assuranceError) return { data, error: assuranceError };
+
+      if (assurance?.nextLevel === "aal2" && assurance.currentLevel !== "aal2") {
+        const { data: factors, error: factorsError } = await supabase.auth.mfa.listFactors();
+        if (factorsError) return { data, error: factorsError };
+
+        const totpFactor = factors?.totp?.find((factor) => factor.status === "verified");
+        if (totpFactor) {
+          return { data, error: null, mfaRequired: true, factorId: totpFactor.id };
+        }
+      }
+    }
+
+    return { data, error, mfaRequired: false };
+  };
+
+  const verifyMfaCode = async (factorId, code) => {
+    if (!factorId) return { error: new Error("No se encontró el factor 2FA.") };
+    if (!/^\d{6}$/.test(code)) {
+      return { error: new Error("Ingresa el código de 6 dígitos de tu app autenticadora.") };
+    }
+
+    const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+      factorId,
+      code,
+    });
+
     return { data, error };
   };
 
@@ -181,10 +265,14 @@ export const AuthProvider = ({ children }) => {
   };
 
   /**
-   * Fuerza recarga del perfil desde Supabase (datos siempre frescos).
+   * Fuerza recarga del perfil desde Supabase y limpia el caché global.
    */
   const refreshProfile = () => {
-    if (user?.id) return fetchSupabaseProfile(user.id);
+    if (user?.id) {
+       sharedProfilePromise = null; 
+       lastProfileUserId = null;
+       return fetchSupabaseProfile(user.id);
+    }
   };
 
   const value = {
@@ -194,7 +282,9 @@ export const AuthProvider = ({ children }) => {
     loading,
     loginWithGoogle,
     linkGoogleToCurrentAccount,
+    unlinkGoogle,
     loginWithEmail,
+    verifyMfaCode,
     registerWithEmail,
     logout,
     refreshProfile,

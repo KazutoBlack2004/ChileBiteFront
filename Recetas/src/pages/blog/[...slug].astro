@@ -1,0 +1,118 @@
+---
+import "@/styles/global.css";
+import Footer from '@/shared/layout/Footer';
+import Navbar from '@/shared/layout/Navbar';
+import VideoEmbed from '@/components/common/VideoEmbed.astro';
+import { getCollection, render } from 'astro:content';
+import BaseHead from '@/shared/layout/BaseHead.astro';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog');
+  return posts.map(post => ({
+    params: { slug: post.slug },
+    props: post,
+  }));
+}
+
+const post = Astro.props;
+const { Content } = await render(post);
+
+// Map common components to MDX
+const components = {
+  Video: VideoEmbed,
+};
+---
+
+<html lang="es">
+  <head>
+    <BaseHead 
+      title={`${post.data.title} | La Ruta del Sabor`} 
+      description={post.data.description} 
+      image={post.data.heroImage} 
+    />
+  </head>
+
+  <body class="transition-colors duration-300 min-h-screen flex flex-col">
+    <Navbar client:only="react" />
+
+    <main class="flex-grow pt-32 pb-16 px-4 min-h-[calc(100vh-80px)]">
+      <article class="max-w-4xl mx-auto">
+        {/* Breadcrumbs */}
+        <nav class="flex items-center space-x-2 text-xs font-bold uppercase tracking-widest text-gray-500 mb-8">
+          <a href="/blog" class="hover:text-[#b08968] transition-colors uppercase tracking-widest">La Ruta</a>
+          <span>/</span>
+          <span class="text-[#b08968]">{post.data.location.label}</span>
+        </nav>
+
+        {/* Header */}
+        <header class="mb-12">
+          <h1 class="text-4xl md:text-6xl font-black text-gray-900 dark:text-white leading-tight mb-6">
+            {post.data.title}
+          </h1>
+          <div class="flex items-center space-x-6 text-sm text-gray-400 font-medium">
+             <div class="flex items-center space-x-2">
+                <svg class="w-4 h-4 text-[#b08968]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                <time>{new Intl.DateTimeFormat('es-CL', { dateStyle: 'long' }).format(post.data.pubDate)}</time>
+             </div>
+             <div class="flex items-center space-x-2">
+                <svg class="w-4 h-4 text-[#b08968]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 2a8 8 0 0 0-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 0 0-8-8z"/><circle cx="12" cy="10" r="3"/></svg>
+                <span>{post.data.location.label}</span>
+             </div>
+          </div>
+        </header>
+
+        {/* Featured Image or main video could be here */}
+        {post.data.heroImage && (
+          <div class="rounded-3xl overflow-hidden shadow-2xl border border-white/10 mb-12 relative group h-[400px] md:h-[500px]">
+            <img 
+               src={post.data.heroImage} 
+               alt={post.data.title} 
+               class="w-full h-full object-cover transition-transform duration-700" 
+            />
+            <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+          </div>
+        )}
+
+        {/* MDX Content */}
+        <div class="prose prose-invert prose-lg max-w-none 
+          prose-headings:text-white prose-headings:font-black
+          prose-p:text-gray-300 prose-p:leading-relaxed
+          prose-a:text-[#b08968] prose-a:no-underline hover:prose-a:underline
+          prose-strong:text-white prose-blockquote:border-l-[#b08968] prose-blockquote:bg-gray-900/50 prose-blockquote:p-6 prose-blockquote:rounded-r-2xl
+          prose-img:rounded-3xl prose-img:shadow-xl
+          space-y-8"
+        >
+          <Content components={components} />
+        </div>
+
+        {/* Back Link */}
+        <div class="mt-20 pt-10 border-t border-gray-200 dark:border-white/10">
+          <a href="/blog" class="inline-flex items-center space-x-3 text-gray-900 dark:text-white font-black hover:text-[#b08968] transition-all group">
+            <svg class="w-4 h-4 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 12H5m7 7l-7-7 7-7"/></svg>
+            <span>Volver a la Ruta</span>
+          </a>
+        </div>
+      </article>
+    </main>
+
+    <Footer client:visible />
+  </body>
+</html>
+
+<style is:global>
+  /* Standard Tailwind Typography (prose) equivalent overrides */
+  .prose h2 { 
+    font-size: 1.875rem; 
+    line-height: 2.25rem;
+    font-weight: 700;
+    margin-top: 3rem;
+    margin-bottom: 1.5rem;
+    color: white;
+  }
+  .prose p { 
+    font-size: 1.125rem;
+    line-height: 1.75rem;
+    color: rgb(209 213 219); /* text-gray-300 */
+    margin-bottom: 1.5rem;
+  }
+</style>

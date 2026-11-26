@@ -1,0 +1,100 @@
+---
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+  canonicalURL?: string;
+  robots?: string;
+  preloadImage?: string;
+}
+
+const {
+  title = "ChileBite – Descubre, Aprende y Comparte",
+  description = "ChileBite es la plataforma gastronómica chilena para explorar recetas paso a paso, calcular macronutrientes, descubrir restaurantes y conectar con una comunidad apasionada por la cocina.",
+  image = "https://chilebite.cl/images/Titulo.webp",
+  canonicalURL = Astro.props.canonicalURL || (
+    Astro.site 
+      ? new URL(Astro.url.pathname === '/' ? '/' : Astro.url.pathname.replace(/\/+$/, ''), Astro.site).toString()
+      : Astro.url.href
+  ),
+  robots = "index, follow",
+  preloadImage,
+} = Astro.props;
+---
+
+<!-- ── Caracteres & Viewport ── -->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<!-- ── Conexión previa a orígenes críticos (Google PageSpeed) ── -->
+<link rel="preconnect" href="https://tnzpojvhsxjzfachozid.supabase.co" crossorigin />
+<link rel="dns-prefetch" href="https://tnzpojvhsxjzfachozid.supabase.co" />
+<link rel="preconnect" href="https://http2.mlstatic.com" crossorigin />
+<link rel="dns-prefetch" href="https://http2.mlstatic.com" />
+<link rel="preconnect" href="https://cloudfront-us-east-1.images.arcpublishing.com" crossorigin />
+
+{preloadImage && (
+  <link rel="preload" as="image" href={preloadImage} type="image/webp" fetchpriority="high" />
+)}
+
+<!-- ── Favicon ── -->
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<link rel="shortcut icon" href="/favicon.svg" />
+<link rel="apple-touch-icon" href="/favicon.svg" />
+
+<!-- ── SEO Primario ── -->
+<title>{title}</title>
+<meta name="title" content={title} />
+<meta name="description" content={description} />
+<meta name="author" content="Chrystopher Silva, Miguel Escobar" />
+<meta name="robots" content={robots} />
+<link rel="canonical" href={canonicalURL} />
+
+<!-- ── Open Graph / Facebook ── -->
+<meta property="og:type" content="website" />
+<meta property="og:url" content={Astro.url} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={image} />
+<meta property="og:site_name" content="ChileBite" />
+<meta property="og:locale" content="es_CL" />
+
+<!-- ── Twitter ── -->
+<meta property="twitter:card" content="summary_large_image" />
+<meta property="twitter:url" content={Astro.url} />
+<meta property="twitter:title" content={title} />
+<meta property="twitter:description" content={description} />
+<meta property="twitter:image" content={image} />
+
+<!-- ── Theme & PWA hints ── -->
+<meta name="theme-color" content="#b08968" />
+
+<!-- ── Verificación de Google Search Console ── -->
+<meta name="google-site-verification" content="googlefb7a0970f8b074aa" />
+
+<!-- ── Google AdSense (Tag canónico oficial requerido por el rastreador de verificación) ── -->
+<meta name="google-adsense-account" content="ca-pub-8451477510853664" />
+<script
+  is:inline
+  async
+  src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8451477510853664"
+  crossorigin="anonymous"
+></script>
+
+<!-- ── FOUC (Flash of Unstyled Content) Prevention ── -->
+<script is:inline>
+  const theme = (() => {
+    if (typeof localStorage !== "undefined" && localStorage.getItem("theme")) {
+      return localStorage.getItem("theme");
+    }
+    if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      return "dark";
+    }
+    return "light";
+  })();
+  if (theme === "dark") {
+    document.documentElement.classList.add("dark");
+  } else {
+    document.documentElement.classList.remove("dark");
+  }
+</script>

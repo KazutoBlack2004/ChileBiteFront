@@ -1,6 +1,13 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://tnzpojvhsxjzfachozid.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuenBvanZoc3hqemZhY2hvemlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1ODE1NjcsImV4cCI6MjA4OTE1NzU2N30.6C9T_4tj4jHNtCB7KkUbUqFAK58XObRwXDTOQXf0S_M'
+const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || 'https://tnzpojvhsxjzfachozid.supabase.co'
+const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_rJKjnreA7A8lP_zTwgvGxw_FMciqFlo'
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    lock: async (name, acquireTimeout, fn) => {
+      return await fn();
+    },
+  },
+})
+

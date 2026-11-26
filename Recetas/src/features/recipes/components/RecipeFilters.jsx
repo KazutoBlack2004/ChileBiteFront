@@ -1,9 +1,7 @@
 import React, { useState } from "react";
 import FireContainer from "./FireContainer";
 import { Button, Select, ListBox, Label, Tooltip } from "@heroui/react";
-
-
-
+import { supabase } from "../../../lib/supabaseClient";
 // Iconos premium, sólidos y limpios para el Mini-Sidebar
 const GlobeIcon = () => (
   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -52,9 +50,16 @@ const RecipeFilters = ({
   const [dietas, setDietas] = useState([]);
 
   React.useEffect(() => {
-    fetch("http://127.0.0.1:8000/api/paises/").then(r => r.json()).then(data => setPaises(data.map(d => d.nombre)));
-    fetch("http://127.0.0.1:8000/api/tipos-plato/").then(r => r.json()).then(data => setTiposPlato(data.map(d => d.nombre)));
-    fetch("http://127.0.0.1:8000/api/estilos-vida/").then(r => r.json()).then(data => setDietas(data.map(d => d.nombre)));
+    const fetchTaxonomies = async () => {
+      const { data: paisesData } = await supabase.from('core_pais').select('nombre');
+      const { data: tiposData } = await supabase.from('core_tipoplato').select('nombre');
+      const { data: dietasData } = await supabase.from('core_estilovida').select('nombre');
+
+      if (paisesData) setPaises(paisesData.map(d => d.nombre));
+      if (tiposData) setTiposPlato(tiposData.map(d => d.nombre));
+      if (dietasData) setDietas(dietasData.map(d => d.nombre));
+    };
+    fetchTaxonomies();
   }, []);
 
   const toggleCategory = (cat) => {
@@ -92,25 +97,25 @@ const RecipeFilters = ({
         {/* Sidebar Físico: 'fixed' en móvil para el overlay (drawer), 'sticky' siempre para anclarse en desktop */}
         <aside className={`
           ${isOpen ? 'fixed md:sticky' : 'sticky'} 
-          top-16 left-0 h-[calc(100vh-5rem)] bg-white dark:bg-[#0f1115] border-r border-gray-200 dark:border-gray-800/80 
+          top-16 left-0 h-[calc(100vh-5rem)] bg-surface-card border-r border-border-subtle 
           flex flex-col z-40 transition-all duration-300 ease-in-out
           rounded-r-3xl
           ${isOpen ? 'w-[85vw] max-w-[320px] shadow-2xl md:shadow-none md:w-[280px] lg:w-[320px] translate-x-0' : 'w-[80px] translate-x-0'}
         `}>
           
           {/* Header */}
-          <div className={`shrink-0 rounded-tr-3xl border-b border-gray-100 dark:border-gray-800/80 transition-colors flex items-center ${isOpen ? 'justify-between px-6 py-5' : 'justify-center py-5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50'}`} onClick={() => !isOpen && setIsOpen(true)}>
+          <div className={`shrink-0 rounded-tr-3xl border-b border-border-subtle transition-colors flex items-center ${isOpen ? 'justify-between px-6 py-5' : 'justify-center py-5 cursor-pointer hover:bg-surface-muted'}`} onClick={() => !isOpen && setIsOpen(true)}>
             {isOpen ? (
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 tracking-tight flex items-center gap-2">
-                  RecipeFilters
+                <h2 className="text-xl font-bold text-text-main tracking-tight flex items-center gap-2">
+                  Filtros
                   {getActiveFilterCount() > 0 && (
-                    <span className="bg-[#A0522D] text-white text-xs px-2 py-0.5 rounded-full font-bold">
+                    <span className="bg-brand-primary text-white text-xs px-2 py-0.5 rounded-full font-bold">
                       {getActiveFilterCount()}
                     </span>
                   )}
                 </h2>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                <p className="text-sm text-text-subtle mt-1">
                   Refina tu búsqueda
                 </p>
               </div>
@@ -118,7 +123,7 @@ const RecipeFilters = ({
               <div className="relative">
                 <FilterIcon />
                 {getActiveFilterCount() > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-3 w-3 rounded-full bg-[#A0522D] border-2 border-white dark:border-[#0f1115]"></span>
+                  <span className="absolute -top-1 -right-1 flex h-3 w-3 rounded-full bg-brand-primary border-2 border-surface-card"></span>
                 )}
               </div>
             )}
@@ -126,7 +131,8 @@ const RecipeFilters = ({
             {/* Click chevron to toggle desktop */}
             <button 
               onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }} 
-              className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors hidden md:block"
+              className="text-text-subtle hover:text-text-main p-1.5 rounded-full hover:bg-surface-muted transition-colors hidden md:block"
+              aria-label={isOpen ? "Colapsar filtros" : "Expandir filtros"}
             >
               <svg className={`w-5 h-5 transition-transform duration-300 ${isOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -136,23 +142,24 @@ const RecipeFilters = ({
             {/* Click X to close mobile */}
             <button 
               onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} 
-              className="md:hidden text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="md:hidden text-text-subtle hover:text-text-main p-2 rounded-full hover:bg-surface-muted transition-colors"
+              aria-label="Cerrar filtros"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
 
-          <div className={`flex flex-1 flex-col overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-700 ${isOpen ? 'p-6 gap-8' : 'p-3 py-6 items-center gap-6'}`}>
+          <div className={`flex flex-1 flex-col overflow-y-auto overflow-x-hidden scrollbar-thin scrollbar-thumb-border-subtle ${isOpen ? 'p-6 gap-8' : 'p-3 py-6 items-center gap-6'}`}>
             
             {/* Origen / País */}
             <section className={`flex flex-col ${isOpen ? 'gap-3' : 'items-center gap-1 cursor-pointer'}`} onClick={() => !isOpen && setIsOpen(true)}>
               {isOpen ? (
-                <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-text-subtle uppercase tracking-wider flex items-center gap-2">
                   <GlobeIcon /> Origen
                 </h3>
               ) : (
                 <Tooltip content="Origen / País" placement="right">
-                  <div className="p-3 bg-gray-50/50 dark:bg-gray-800/30 text-gray-500 dark:text-gray-400 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition opacity-80 hover:opacity-100">
+                  <div className="p-3 bg-surface-muted text-text-muted rounded-xl hover:bg-surface-muted/80 transition opacity-80 hover:opacity-100">
                     <GlobeIcon />
                   </div>
                 </Tooltip>
@@ -164,24 +171,20 @@ const RecipeFilters = ({
                   placeholder="Todos los países"
                   selectedKeys={selectedCountry ? [selectedCountry] : []}
                   onSelectionChange={(keys) => {
-                    const val = Array.from(keys)[0];
+                    const val = (keys instanceof Set || (keys && typeof keys.has === 'function')) ? Array.from(keys)[0] : keys;
                     setSelectedCountry(val || "");
                   }}
-                  variant="bordered"
-                  size="sm"
-                  classNames={{
-                    trigger: "bg-gray-50 dark:bg-gray-800/40 border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500 transition-colors",
-                  }}
+                  aria-label="Filtrar por país"
                 >
                   <Label className="sr-only">País</Label>
-                  <Select.Trigger>
-                    <Select.Value />
-                    <Select.Indicator />
+                  <Select.Trigger className="w-full h-11 bg-surface-input border border-border-subtle hover:border-border-strong text-text-main rounded-xl px-3 flex items-center justify-between transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-primary">
+                    <Select.Value className="text-sm text-text-main font-medium truncate" />
+                    <Select.Indicator className="text-text-muted shrink-0" />
                   </Select.Trigger>
-                  <Select.Popover>
-                    <ListBox>
+                  <Select.Popover className="bg-surface-elevated text-text-main border border-border-subtle shadow-xl rounded-xl p-1">
+                    <ListBox className="bg-surface-elevated text-text-main">
                       {paises.map(p => (
-                        <ListBox.Item key={p} id={p} textValue={p}>
+                        <ListBox.Item key={p} id={p} textValue={p} className="hover:bg-surface-muted text-text-main rounded-lg px-2.5 py-2 cursor-pointer text-sm">
                           {p}
                           <ListBox.ItemIndicator />
                         </ListBox.Item>
@@ -193,24 +196,24 @@ const RecipeFilters = ({
             </section>
 
             {/* Separador */}
-            <div className="h-px w-full bg-gray-100 dark:bg-gray-800/60 rounded-full shrink-0" />
+            <div className="h-px w-full bg-border-subtle rounded-full shrink-0" />
 
             {/* Dificultad */}
             <section className={`flex flex-col ${isOpen ? 'gap-3' : 'items-center gap-1 cursor-pointer'}`} onClick={() => !isOpen && setIsOpen(true)}>
               {isOpen ? (
-                <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-text-subtle uppercase tracking-wider flex items-center gap-2">
                   <FireOutlineIcon /> Dificultad
                 </h3>
               ) : (
                 <Tooltip content="Dificultad" placement="right">
-                  <div className="p-3 bg-gray-50/50 dark:bg-gray-800/30 text-gray-500 dark:text-gray-400 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition opacity-80 hover:opacity-100">
+                  <div className="p-3 bg-surface-muted text-text-muted rounded-xl hover:bg-surface-muted/80 transition opacity-80 hover:opacity-100">
                     <FireOutlineIcon />
                   </div>
                 </Tooltip>
               )}
 
               {isOpen && (
-                <div className="bg-gray-50 dark:bg-gray-800/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700/80 flex justify-center shadow-inner">
+                <div className="bg-surface-muted/60 p-4 rounded-xl border border-border-subtle flex justify-center shadow-inner">
                   <FireContainer
                     selectedDifficulty={selectedDifficulty}
                     setSelectedDifficulty={setSelectedDifficulty}
@@ -220,17 +223,17 @@ const RecipeFilters = ({
             </section>
 
             {/* Separador */}
-            <div className="h-px w-full bg-gray-100 dark:bg-gray-800/60 rounded-full shrink-0" />
+            <div className="h-px w-full bg-border-subtle rounded-full shrink-0" />
 
             {/* Dietas e Intolerancias */}
             <section className={`flex flex-col ${isOpen ? 'gap-3' : 'items-center gap-1 cursor-pointer'}`} onClick={() => !isOpen && setIsOpen(true)}>
               {isOpen ? (
-                <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-text-subtle uppercase tracking-wider flex items-center gap-2">
                   <LeafIcon /> Estilo de Vida
                 </h3>
               ) : (
                 <Tooltip content="Estilo de Vida (Categorías)" placement="right">
-                  <div className="p-3 bg-gray-50/50 dark:bg-gray-800/30 text-gray-500 dark:text-gray-400 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition opacity-80 hover:opacity-100">
+                  <div className="p-3 bg-surface-muted text-text-muted rounded-xl hover:bg-surface-muted/80 transition opacity-80 hover:opacity-100">
                     <LeafIcon />
                   </div>
                 </Tooltip>
@@ -247,8 +250,8 @@ const RecipeFilters = ({
                         onPress={() => toggleCategory(c)}
                         className={`rounded-full text-xs font-medium transition-all duration-200 ${
                           isSelected 
-                          ? "bg-[#A0522D] text-white shadow-md border-transparent scale-105" 
-                          : "bg-transparent text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105"
+                          ? "bg-brand-primary text-white shadow-md border-transparent scale-105" 
+                          : "bg-transparent text-text-main border border-border-subtle hover:bg-surface-muted hover:scale-105"
                         }`}
                       >
                         {c}
@@ -260,17 +263,17 @@ const RecipeFilters = ({
             </section>
 
             {/* Separador */}
-            <div className="h-px w-full bg-gray-100 dark:bg-gray-800/60 rounded-full shrink-0" />
+            <div className="h-px w-full bg-border-subtle rounded-full shrink-0" />
 
             {/* Tipo de Plato */}
             <section className={`flex flex-col ${isOpen ? 'gap-3' : 'items-center gap-1 cursor-pointer'}`} onClick={() => !isOpen && setIsOpen(true)}>
               {isOpen ? (
-                <h3 className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-text-subtle uppercase tracking-wider flex items-center gap-2">
                   <ForkIcon /> Tipo de Plato
                 </h3>
               ) : (
                   <Tooltip content="Tipo de Plato" placement="right">
-                    <div className="p-3 bg-gray-50/50 dark:bg-gray-800/30 text-gray-500 dark:text-gray-400 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700/50 transition opacity-80 hover:opacity-100">
+                    <div className="p-3 bg-surface-muted text-text-muted rounded-xl hover:bg-surface-muted/80 transition opacity-80 hover:opacity-100">
                       <ForkIcon />
                     </div>
                   </Tooltip>
@@ -286,8 +289,8 @@ const RecipeFilters = ({
                         onPress={() => toggleCategory(c)}
                         className={`rounded-full text-xs font-medium transition-all duration-200 ${
                           isSelected 
-                          ? "bg-[#A0522D] text-white shadow-md border-transparent scale-105" 
-                          : "bg-transparent text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105"
+                          ? "bg-brand-primary text-white shadow-md border-transparent scale-105" 
+                          : "bg-transparent text-text-main border border-border-subtle hover:bg-surface-muted hover:scale-105"
                         }`}
                       >
                         {c}
@@ -301,7 +304,7 @@ const RecipeFilters = ({
           </div>
 
           {/* Pie / Reset */}
-          <div className={`shrink-0 rounded-br-3xl border-t border-gray-100 dark:border-gray-800/80 mt-auto transition-all overflow-hidden ${isOpen ? 'p-6' : 'p-4 flex items-center justify-center'}`}>
+          <div className={`shrink-0 rounded-br-3xl border-t border-border-subtle mt-auto transition-all overflow-hidden ${isOpen ? 'p-6' : 'p-4 flex items-center justify-center'}`}>
             {isOpen ? (
               <Button
                 className="w-full font-bold shadow-md bg-red-600 text-white hover:bg-red-700"
@@ -319,6 +322,7 @@ const RecipeFilters = ({
                 className="text-gray-400 hover:text-red-600 transition-colors p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-950/30"
                 onClick={(e) => { e.stopPropagation(); resetFilters(); }}
                 title="Limpiar filtros"
+                aria-label="Limpiar filtros"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

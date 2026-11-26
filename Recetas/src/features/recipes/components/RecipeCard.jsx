@@ -1,56 +1,107 @@
 import React, { useState, useEffect } from "react";
 import FireContainer from "./FireContainer.jsx";
-import { Heart, Bookmark, Check, Eye } from "lucide-react";
+import { Heart, Bookmark, Check, Eye, MapPin } from "lucide-react";
 import { toast } from "@heroui/react";
 import { useAuth } from '@/features/auth/context/AuthContext';
+import { supabase } from '@/lib/supabaseClient';
+import CollectionPickerModal from "./CollectionPickerModal.jsx";
+import { trackRecipeView } from "../services/recommendationEngine";
+import { notifyAuthRequired } from "@/shared/utils/authToast.jsx";
 
-export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected = false, onToggleSelect }) {
+export default function RecipeCard({ receta, index = 0, usuarioEsAdmin = false, isSelected = false, onToggleSelect }) {
   const { session } = useAuth();
   const [liked, setLiked] = useState(false);
-  const [likes, setLikes] = useState(0);
+  const [likes, setLikes] = useState(receta.likes ?? receta.contador_likes ?? 0);
   const [guardado, setGuardado] = useState(false);
+  const [isCollectionModalOpen, setIsCollectionModalOpen] = useState(false);
 
   const idToUse = receta.id_receta || receta.id;
 
-  // === CARGA INICIAL: sincroniza con backend ===
+  // === CARGA INICIAL: sincroniza estado de corazon y guardado para este usuario ===
   useEffect(() => {
+    setLikes(receta.likes ?? receta.contador_likes ?? 0);
+
     if (!idToUse) return;
     
     const fetchEstado = async () => {
       try {
-        const token = session?.access_token;
-        const headers = token ? { "Authorization": `Bearer ${token}` } : {};
+        const promises = [
+          supabase
+            .from('core_recetalike')
+            .select('*', { count: 'exact', head: true })
+            .eq('receta_id', idToUse)
+        ];
 
-        const response = await fetch(`http://127.0.0.1:8000/api/recetas/${idToUse}/`, { headers });
-        if (!response.ok) throw new Error("Error al obtener la receta");
-        const data = await response.json();
+        if (session?.user?.id) {
+          promises.push(
+            supabase
+              .from('core_recetalike')
+              .select('*', { count: 'exact', head: true })
+              .eq('receta_id', idToUse)
+              .eq('user_id', session.user.id),
+            supabase
+              .from('core_coleccion')
+              .select('id')
+              .eq('user_id', session.user.id)
+          );
+        }
 
-        setLiked(data.liked || false);
-        setLikes(data.contador_likes || 0);
-        setGuardado(data.is_guardada || false);
+        const results = await Promise.all(promises);
+        const globalLikes = results[0].count || 0;
+
+        let userLiked = false;
+        let userSaved = false;
+
+        if (session?.user?.id) {
+          const likeCount = results[1].count || 0;
+          const colecciones = results[2].data || [];
+          userLiked = likeCount > 0;
+
+          if (colecciones.length > 0) {
+            const { count } = await supabase
+              .from('core_coleccion_receta')
+              .select('*', { count: 'exact', head: true })
+              .eq('receta_id', idToUse)
+              .in('coleccion_id', colecciones.map(c => c.id));
+            userSaved = (count || 0) > 0;
+          }
+        }
+
+        setLiked(userLiked);
+        setGuardado(userSaved);
+        setLikes(globalLikes); 
       } catch (err) {
         console.error("Error al obtener estado de receta:", err);
       }
     };
     fetchEstado();
-  }, [idToUse]);
+  }, [idToUse, session?.user?.id, receta]);
 
   // === LIKE ===
   const handleFavorite = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const token = session?.access_token;
-    if (!token) return toast.danger("Acceso Denegado", { description: "Debes estar logueado para marcar como favorito" });
+    if (!session?.user?.id) {
+      notifyAuthRequired("like");
+      return;
+    }
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/recetas/${idToUse}/like/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error("No se pudo actualizar favorito");
-      const data = await response.json();
-      setLiked(data.is_liked ?? !liked);
-      setLikes(data.total_likes ?? (liked ? likes - 1 : likes + 1));
+      if (liked) {
+         await supabase.from('core_recetalike').delete().eq('receta_id', idToUse).eq('user_id', session.user.id);
+         setLikes(Math.max(0, likes - 1));
+         toast.success("Ya no te gusta esta receta");
+      } else {
+         await supabase.from('core_recetalike').insert([{ receta_id: idToUse, user_id: session.user.id }]);
+         setLikes(likes + 1);
+         toast.success((
+             <div className="flex flex-col">
+                 <span className="font-bold">¡Genial!</span>
+                 <span className="text-sm">Agregado a tus me gusta</span>
+             </div>
+         ));
+      }
+      setLiked(!liked);
     } catch (err) {
       console.error(err);
     }
@@ -60,20 +111,25 @@ export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected 
   const handleSave = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    const token = session?.access_token;
-    if (!token) return toast.danger("Acceso Denegado", { description: "Debes estar logueado para guardar" });
-
-    try {
-      const response = await fetch(`http://127.0.0.1:8000/api/recetas/${idToUse}/guardar/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      });
-      if (!response.ok) throw new Error("No se pudo guardar la receta");
-      const data = await response.json();
-      setGuardado(data.is_guardada ?? !guardado);
-    } catch (err) {
-      console.error(err);
+    if (!session?.user?.id) {
+      notifyAuthRequired("save");
+      return;
     }
+    setIsCollectionModalOpen(true);
+  };
+
+  const handleCollectionSaveComplete = async () => {
+    // Al cerrar o guardar, re-evaluamos si la receta quedó en alguna colección
+    if (!session?.user?.id) return;
+    try {
+        const { data: colecciones } = await supabase.from('core_coleccion').select('id').eq('user_id', session.user.id);
+        if (colecciones && colecciones.length > 0) {
+          const { count } = await supabase.from('core_coleccion_receta').select('*', { count: 'exact', head: true }).eq('receta_id', idToUse).in('coleccion_id', colecciones.map(c => c.id));
+          setGuardado((count || 0) > 0);
+        } else {
+          setGuardado(false);
+        }
+    } catch(err) {}
   };
 
   const dificultadMap = {
@@ -87,6 +143,9 @@ export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected 
 
   const handleCardClick = (e) => {
     if (e.target.closest("[data-receta-ignore='true']")) return;
+    if (idToUse) {
+      trackRecipeView(idToUse);
+    }
     if (usuarioEsAdmin && onToggleSelect) {
       onToggleSelect(idToUse);
     } else {
@@ -99,7 +158,7 @@ export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected 
 
   return (
     <div 
-      className={`group relative bg-white dark:bg-[#0f1115] border rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 ease-out cursor-pointer flex flex-col h-full ${isSelected ? "border-[#b08969] ring-2 ring-[#b08969]/50" : "border-slate-200 dark:border-slate-800"}`}
+      className={`group relative bg-surface-card border rounded-2xl overflow-hidden shadow-md hover:shadow-2xl hover:-translate-y-1 dark:shadow-[0_4px_20px_rgba(0,0,0,0.35)] dark:hover:shadow-[0_12px_32px_rgba(0,0,0,0.6)] transition-all duration-300 ease-out cursor-pointer flex flex-col h-full ${isSelected ? "border-brand-primary ring-2 ring-brand-primary/50" : "border-border-subtle"}`}
       onClick={handleCardClick}
     >
       {/* Admin Multi-Select Checkbox Overlay */}
@@ -110,7 +169,8 @@ export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected 
         >
           <button 
             onClick={(e) => { e.stopPropagation(); onToggleSelect && onToggleSelect(idToUse); }}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 transition-all backdrop-blur-md shadow-lg ${isSelected ? "bg-[#b08969] border-[#b08969] text-white" : "bg-black/30 border-white/40 text-transparent hover:border-white"}`}
+            aria-label="Seleccionar receta"
+            className={`w-8 h-8 rounded-lg flex items-center justify-center border-2 transition-all backdrop-blur-md shadow-lg ${isSelected ? "bg-brand-primary border-brand-primary text-white" : "bg-black/30 border-white/40 text-transparent hover:border-white"}`}
           >
             <Check className={`w-5 h-5 ${isSelected ? "opacity-100" : "opacity-0"}`} strokeWidth={3} />
           </button>
@@ -121,11 +181,24 @@ export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected 
       <div className="relative h-56 shrink-0 overflow-hidden">
         <img 
           alt={receta.nombre} 
+          width="400"
+          height="224"
+          loading={index < 3 ? "eager" : "lazy"}
+          decoding="async"
+          fetchpriority={index === 0 ? "high" : undefined}
           className={`w-full h-full object-cover transition-transform duration-700 ease-in-out ${isSelected ? 'scale-110' : 'group-hover:scale-110'}`} 
           src={receta.imagen_url || "https://placehold.co/800x600?text=Receta"}
           onError={(e) => { e.target.onerror = null; e.target.src = "https://placehold.co/800x600?text=No+Image"; }}
         />
         
+        {/* Floating Country Badge (Bottom-Left) */}
+        <div className="absolute bottom-3 left-3 z-30" data-receta-ignore="true">
+          <span className="px-3 py-1.5 rounded-full flex items-center gap-1.5 backdrop-blur-md transition-colors border shadow-md bg-black/40 text-white border-white/20 text-[10px] font-bold tracking-widest uppercase">
+            <MapPin className="w-3.5 h-3.5" />
+            {receta.pais_nombre || receta.pais_detalle?.nombre || (typeof receta.pais === 'string' && receta.pais.length > 3 ? receta.pais : '—')}
+          </span>
+        </div>
+
         {/* Floating Badges (Top-Right) */}
         <div className="absolute top-4 right-4 z-30 flex flex-col gap-2" data-receta-ignore="true">
           {usuarioEsAdmin && (
@@ -133,7 +206,8 @@ export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected 
               type="button"
               onClick={(e) => { e.stopPropagation(); window.open(`/recipes/${idToUse}`, "_blank"); }}
               title="Ver Receta"
-              className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-colors border shadow-md bg-black/40 text-white border-white/20 hover:bg-[#b08969]"
+              aria-label="Ver Receta"
+              className="w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-colors border shadow-md bg-black/40 text-white border-white/20 hover:bg-brand-primary"
             >
               <Eye className="w-5 h-5" />
             </button>
@@ -142,41 +216,30 @@ export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected 
             type="button"
             onClick={handleSave}
             title={guardado ? "Quitar de Guardados" : "Guardar Receta"}
-            className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-colors border shadow-md ${guardado ? "bg-yellow-500/90 text-white border-yellow-400" : "bg-black/40 text-white border-white/20 hover:bg-black/60"}`}
+            aria-label={guardado ? "Quitar de Guardados" : "Guardar Receta"}
+            className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md transition-colors border shadow-md border-white/20 hover:bg-black/60 ${guardado ? "bg-yellow-500/90 text-white border-yellow-400" : "bg-black/40 text-white"}`}
           >
             <Bookmark className={`w-5 h-5 ${guardado ? "fill-current" : ""}`} />
           </button>
         </div>
-
-        {/* Subtle bottom overlay for text contrast */}
-        <div className="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-black/70 to-transparent pointer-events-none z-0"></div>
-
-        {/* Floating Badges (Bottom-Left) */}
-        <div className="absolute bottom-3 left-3 flex flex-wrap gap-2 z-10 pr-3 pointer-events-none">
-          {receta.pais_detalle && (
-            <div className="px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-lg border border-white/20 text-white text-[10px] font-bold uppercase tracking-widest shadow-lg">
-               {receta.pais_detalle.nombre}
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Central Zone */}
-      <div className="p-5 flex-1 flex flex-col">
-        <h3 className="text-xl font-bold text-slate-900 dark:text-white leading-tight tracking-tight mb-2 line-clamp-2">
-            {receta.nombre}
+      {/* Middle Content */}
+      <div className="p-5 flex flex-col gap-3 flex-1">
+        <h3 className="text-xl font-bold text-text-main leading-tight tracking-tight line-clamp-2">
+          {receta.nombre}
         </h3>
-        <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed line-clamp-2 italic">
+        <p className="text-text-muted text-sm leading-relaxed line-clamp-2 italic">
             {receta.descripcion_corta}
         </p>
       </div>
 
       {/* Footer */}
-      <div className="px-5 py-4 flex items-center justify-between border-t border-slate-200/50 dark:border-slate-800/50 mt-auto">
+      <div className="px-5 py-4 flex items-center justify-between border-t border-border-subtle mt-auto">
         {/* Left: Flame Icons + Media */}
         <div className="flex items-center gap-2">
           <FireContainer selectedDifficulty={dificultadNum} setSelectedDifficulty={() => {}} />
-          <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+          <span className="text-[11px] font-bold uppercase tracking-widest text-text-muted">
             {receta.dificultad}
           </span>
         </div>
@@ -187,15 +250,23 @@ export default function RecipeCard({ receta, usuarioEsAdmin = false, isSelected 
             type="button"
             onClick={handleFavorite}
             title={liked ? "Ya no me gusta" : "Me gusta"}
+            aria-label={liked ? "Quitar de favoritos" : "Añadir a favoritos"}
             className="flex items-center gap-2 group/heart bg-transparent border-none p-1 cursor-pointer transition-transform active:scale-90"
           >
-            <Heart className={`w-6 h-6 transition-transform group-hover/heart:scale-125 ${liked ? "fill-[#ff4757] text-[#ff4757]" : "text-slate-400"}`} />
-            <span className="text-sm font-bold text-slate-700 dark:text-slate-300 pointer-events-none">
+            <Heart className={`w-6 h-6 transition-transform group-hover/heart:scale-125 ${liked ? "fill-[#ff4757] text-[#ff4757]" : "text-text-subtle"}`} />
+            <span className="text-sm font-bold text-text-muted pointer-events-none">
               {likes}
             </span>
           </button>
         </div>
       </div>
+
+      <CollectionPickerModal 
+        isOpen={isCollectionModalOpen} 
+        onOpenChange={setIsCollectionModalOpen} 
+        recetaId={idToUse}
+        onSaveComplete={handleCollectionSaveComplete}
+      />
     </div>
   );
 }

@@ -12,16 +12,27 @@ export default function ResetPasswordClient() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const checkSession = async () => {
-      // Supabase parses the access_token from the URL hash automatically 
-      // and establishes a session.
-      const { data: { session } } = await supabase.auth.getSession();
+    // Supabase v2 processes the #access_token hash asynchronously.
+    // We must listen to onAuthStateChange for the PASSWORD_RECOVERY event,
+    // which fires once Supabase has validated the recovery token from the URL.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && session)) {
+          setValidSession(true);
+          setChecking(false);
+        }
+      }
+    );
+
+    // Fallback: check if a session already exists (e.g. page re-render)
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setValidSession(true);
       }
       setChecking(false);
-    };
-    checkSession();
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleChange = (e) => {
@@ -32,11 +43,11 @@ export default function ResetPasswordClient() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (formData.password.length < 6) {
-      toast.error("La contraseña debe tener al menos 6 caracteres.");
+      toast.danger("La contraseña debe tener al menos 6 caracteres.");
       return;
     }
     if (formData.password !== formData.confirm) {
-      toast.error("Las contraseñas no coinciden.");
+      toast.danger("Las contraseñas no coinciden.");
       return;
     }
 
@@ -51,7 +62,7 @@ export default function ResetPasswordClient() {
       setTimeout(() => { window.location.href = "/"; }, 1500);
     } catch (err) {
       setErrorObj(err.message || "Error al actualizar la contraseña");
-      toast.error("Ocurrió un error.");
+      toast.danger("Ocurrió un error.");
     } finally {
       setLoading(false);
     }

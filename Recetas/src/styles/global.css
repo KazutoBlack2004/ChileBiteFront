@@ -1,52 +1,257 @@
+/* =============================================================================
+   CHILEBITE - SISTEMA GLOBAL DE ESTILOS & TOKENS DE DISEÑO
+   =============================================================================
+   Estructura del archivo:
+   1. DIRECTIVAS & CAPAS DE FRAMEWORK (Tailwind v4, HeroUI)
+   2. CONFIGURACIÓN DE TEMA & DESIGN TOKENS (@theme)
+   3. PALETAS POR MODO (@layer base: :root Claro & html.dark Oscuro)
+   4. ARMONIZACIÓN DE FORMULARIOS & SELECTS
+   5. EFECTOS DE CRISTAL / GLASSMORPHISM
+   6. SCROLLBARS PERSONALIZADOS
+   7. CONTENEDORES & UTILIDADES ESPECÍFICAS
+   ============================================================================= */
+
+/* -----------------------------------------------------------------------------
+   1. DIRECTIVAS & CAPAS DE FRAMEWORK
+   ----------------------------------------------------------------------------- */
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 @import "@heroui/styles";
 
 @layer theme, base, components, utilities;
 
+/* -----------------------------------------------------------------------------
+   2. CONFIGURACIÓN DE TEMA & DESIGN TOKENS (@theme)
+   ----------------------------------------------------------------------------- */
+@theme {
+  /* Paleta Base Cobre / Tierra */
+  --color-copper-50: #fdfaf8;
+  --color-copper-100: #f5ece8;
+  --color-copper-200: #eabe9b;
+  --color-copper-300: #d4a373;
+  --color-copper-400: #bc8a5f;
+  --color-copper-500: #b08969;
+  --color-copper-600: #8d6e53;
+  --color-copper-700: #6a523e;
+  --color-copper-800: #463729;
+  --color-copper-900: #231b14;
+
+  /* Colores Clásicos de Marca */
+  --color-sienna: #b08969;
+  --color-obsidian: #1c1916;
+
+  /* Tipografía */
+  --font-inter: "Inter", sans-serif;
+
+  /* Tokens Semánticos Dinámicos (vinculados a variables de :root y html.dark) */
+  --color-bg-page: var(--bg-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-elevated: var(--surface-elevated);
+  --color-surface-input: var(--surface-input);
+  --color-surface-muted: var(--surface-muted);
+
+  --color-text-main: var(--text-main);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-subtle: var(--brand-subtle);
+
+  /* Compatibilidad con componentes UI (mapcn / shadcn) */
+  --color-background: var(--mp-bg-card);
+  --color-foreground: var(--mp-text-title);
+  --color-popover: var(--mp-bg-elevated);
+  --color-popover-foreground: var(--mp-text-body);
+  --color-muted: var(--mp-bg-hover);
+  --color-muted-foreground: var(--mp-text-muted);
+  --color-accent: var(--mp-bg-hover);
+  --color-accent-foreground: var(--mp-text-title);
+  --color-border: var(--mp-border);
+  --color-ring: #10b981;
+}
+
+/* -----------------------------------------------------------------------------
+   3. PALETAS POR MODO (@layer base)
+   ----------------------------------------------------------------------------- */
 @layer base {
-  /* Light mode defaults */
+
+  /* --- MODO CLARO (LIGHT MODE) --- */
   :root {
     color-scheme: light;
-    background-color: #fafaf9;
-    color: #1c1917;
+
+    /* Superficies y Fondos */
+    --bg-page: #f7eddf;             /* Fondo cálido general */
+    --surface-card: #ffffffc8;      /* Tarjetas de recetas y paneles principales */
+    --surface-elevated: #ffffff;    /* Modales, dropdowns y tooltips */
+    --surface-input: #ffffff;       /* Inputs, campos de texto y selects */
+    --surface-muted: #efe6d9;       /* Hovers suaves, tags inactivos */
+
+    /* Tipografía y Contraste WCAG AA compliant */
+    --text-main: #201b18;           /* Títulos, nombres de receta y texto principal */
+    --text-muted: #4e433d;          /* Subtítulos, metadatos y descripciones (> 7:1) */
+    --text-subtle: #594c44;         /* Placeholders e indicaciones (> 6.2:1) */
+
+    /* Bordes y Separadores */
+    --border-subtle: #e3d8cc;       /* Bordes de tarjetas y divisores */
+    --border-strong: #cfc2b3;       /* Bordes activos o al enfocar/hover */
+
+    /* Color de Acento / Marca */
+    --brand-primary: #7a461b;       /* Terracota profundo de alto contraste (> 5.8:1) */
+    --brand-hover: #633612;         /* Hover de botones y enlaces */
+    --brand-subtle: rgba(122, 70, 27, 0.12); /* Fondo suave de selección */
+
+    background-color: var(--bg-page);
+    color: var(--text-main);
   }
 
-  /* Dark mode: only when .dark class is present on <html> */
+  /* --- MODO OSCURO (DARK MODE - Opción 3: Greda Criolla & Caramelo Ámbar) --- */
   html.dark {
     color-scheme: dark;
-    background-color: #111827;
-    color: #f1f5f9;
+
+    /* Superficies y Fondos */
+    --bg-page: #171310;             /* Tierra negra tostada */
+    --surface-card: #231d18;        /* Arcilla pulida */
+    --surface-elevated: #2d251f;    /* Dropdowns y modales */
+    --surface-input: #1b1612;       /* Inputs y campos de formulario */
+    --surface-muted: #382d25;       /* Hovers y estados secundarios */
+
+    /* Tipografía y Contraste (> 6.5:1) */
+    --text-main: #faede1;           /* Marfil cálido de alto contraste */
+    --text-muted: #d8c7b8;          /* Café con leche suave */
+    --text-subtle: #b39f8f;         /* Placeholders y textos de ayuda */
+
+    /* Bordes y Separadores */
+    --border-subtle: #382c23;       /* Bordes sutiles en tono arcilla */
+    --border-strong: #544133;       /* Bordes reforzados */
+
+    /* Color de Acento / Marca */
+    --brand-primary: #f0a262;       /* Ámbar caramelo llamativo (> 7:1) */
+    --brand-hover: #ffb87a;         /* Ámbar hover brillante */
+    --brand-subtle: rgba(240, 162, 98, 0.22); /* Resaltado tenue */
+
+    background-color: var(--bg-page);
+    color: var(--text-main);
   }
 
-  /* Ensure body follows html theme */
+  /* Reset y estructura sticky footer universal */
+  html {
+    min-height: 100%;
+  }
+
   body {
-    background-color: inherit;
-    color: inherit;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-page);
+    color: var(--text-main);
+  }
+
+  main {
+    flex: 1 0 auto;
+    width: 100%;
+    min-height: calc(100vh - 80px);
+  }
+
+  footer {
+    margin-top: auto;
+    width: 100%;
   }
 }
 
-
-/* Estilos personalizados del contenedor */
-.detalle-receta-contenedor {
-  width: 100%;
-  padding: 5rem 0;
-  margin: 0 auto;
-  overflow-x: hidden;
+/* -----------------------------------------------------------------------------
+   4. ARMONIZACIÓN DE FORMULARIOS & SELECTS
+   ----------------------------------------------------------------------------- */
+.select__trigger {
+  background-color: var(--surface-input) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-subtle) !important;
+  transition: all 150ms ease-in-out;
 }
 
-.detalle-receta-contenedor > * {
-  width: 100%;
+.select__trigger:hover,
+.select__trigger[data-hovered="true"] {
+  background-color: var(--surface-muted) !important;
+  border-color: var(--border-strong) !important;
 }
 
-.detalle-receta-contenedor p,
-.detalle-receta-contenedor li {
-  margin-bottom: 0.5rem;
-  font-family: "Georgia", serif;
-  line-height: 1.5;
+.select__trigger[data-focused="true"],
+.select__trigger:focus-visible {
+  border-color: var(--brand-primary) !important;
+  outline: none !important;
+  box-shadow: 0 0 0 2px var(--brand-subtle) !important;
 }
 
-/* Premium Custom Scrollbar */
+.select__trigger [data-slot="value"],
+.select__value {
+  color: var(--text-main) !important;
+}
+
+.select__value[data-placeholder="true"] {
+  color: var(--text-subtle) !important;
+}
+
+.select__indicator {
+  color: var(--text-muted) !important;
+}
+
+.select__popover {
+  background-color: var(--surface-elevated) !important;
+  border-color: var(--border-subtle) !important;
+  color: var(--text-main) !important;
+}
+
+/* Selects nativos */
+select {
+  background-color: var(--surface-input);
+  color: var(--text-main);
+  border-color: var(--border-subtle);
+}
+
+/* Ocultar flechas / spinners nativos en inputs numéricos */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* -----------------------------------------------------------------------------
+   5. EFECTOS DE CRISTAL / GLASSMORPHISM
+   ----------------------------------------------------------------------------- */
+.premium-glass-panel {
+  background-color: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.dark .premium-glass-panel {
+  background-color: rgba(9, 9, 11, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.premium-glass-wrapper {
+  background-color: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html.dark .premium-glass-wrapper {
+  background-color: rgba(9, 9, 11, 0.5);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+}
+
+/* -----------------------------------------------------------------------------
+   6. SCROLLBARS PERSONALIZADOS
+   ----------------------------------------------------------------------------- */
 ::-webkit-scrollbar {
   width: 12px;
   height: 12px;
@@ -67,7 +272,7 @@
   background-color: rgba(107, 114, 128, 0.8);
 }
 
-/* Dark mode scrollbar support */
+/* Modo oscuro scrollbar */
 html.dark ::-webkit-scrollbar-thumb {
   background-color: rgba(75, 85, 99, 0.5);
 }
@@ -76,26 +281,194 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background-color: rgba(156, 163, 175, 0.8);
 }
 
-/* Custom CSS for flawless light/dark glassmorphism */
-.premium-glass-panel {
-  background-color: #ffffff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-html.dark .premium-glass-panel {
-  background-color: rgba(9, 9, 11, 0.6); /* zinc-950/60 */
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+/* -----------------------------------------------------------------------------
+   7. CONTENEDORES & UTILIDADES ESPECÍFICAS
+   ----------------------------------------------------------------------------- */
+.detalle-receta-contenedor {
+  width: 100%;
+  padding: 5rem 0;
+  margin: 0 auto;
+  overflow-x: hidden;
 }
 
-.premium-glass-wrapper {
-  background-color: #ffffff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-html.dark .premium-glass-wrapper {
-  background-color: rgba(9, 9, 11, 0.5); /* zinc-950/50 */
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
+.detalle-receta-contenedor > * {
+  width: 100%;
 }
 
+.detalle-receta-contenedor p,
+.detalle-receta-contenedor li {
+  margin-bottom: 0.5rem;
+  font-family: "Georgia", serif;
+  line-height: 1.5;
+}
+
+/* -----------------------------------------------------------------------------
+   8. MARKETPLACE & LOCALES - ESTILOS CENTRALIZADOS DE TEMA
+   ----------------------------------------------------------------------------- */
+:root {
+  --mp-bg-filter: rgba(255, 255, 255, 0.95);
+  --mp-bg-card: #ffffff;
+  --mp-bg-elevated: #ffffff;
+  --mp-bg-input: #f4f4f5;
+  --mp-bg-hover: #f4f4f5;
+  --mp-border: #e4e4e7;
+  --mp-border-strong: #d4d4d8;
+  --mp-text-title: #09090b;
+  --mp-text-body: #18181b;
+  --mp-text-muted: #71717a;
+  --mp-text-subtle: #a1a1aa;
+}
+
+html.dark {
+  --mp-bg-filter: rgba(9, 9, 11, 0.95);
+  --mp-bg-card: #18181b;
+  --mp-bg-elevated: #18181b;
+  --mp-bg-input: #27272a;
+  --mp-bg-hover: #27272a;
+  --mp-border: #27272a;
+  --mp-border-strong: #3f3f46;
+  --mp-text-title: #ffffff;
+  --mp-text-body: #f4f4f5;
+  --mp-text-muted: #a1a1aa;
+  --mp-text-subtle: #71717a;
+}
+
+/* Clases CSS directas para Marketplace */
+.mp-filter-bar {
+  background-color: var(--mp-bg-filter);
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-button {
+  background-color: var(--mp-bg-card);
+  border: 1px solid var(--mp-border);
+  color: var(--mp-text-body);
+}
+.mp-button:hover {
+  border-color: var(--mp-border-strong);
+  background-color: var(--mp-bg-hover);
+}
+
+.mp-dropdown {
+  background-color: var(--mp-bg-elevated);
+  border: 1px solid var(--mp-border);
+  color: var(--mp-text-body);
+}
+
+.mp-dropdown-header {
+  background-color: var(--mp-bg-elevated);
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-input {
+  background-color: var(--mp-bg-input);
+  border: 1px solid var(--mp-border);
+  color: var(--mp-text-body);
+}
+.mp-input::placeholder {
+  color: var(--mp-text-subtle);
+}
+
+.mp-dropdown-item {
+  color: var(--mp-text-body);
+}
+.mp-dropdown-item:hover {
+  background-color: var(--mp-bg-hover);
+}
+
+.mp-card {
+  background-color: var(--mp-bg-card);
+  border: 1px solid var(--mp-border);
+  color: var(--mp-text-body);
+}
+.mp-card:hover {
+  border-color: var(--mp-border-strong);
+}
+
+.mp-text-title {
+  color: var(--mp-text-title);
+}
+
+.mp-text-body {
+  color: var(--mp-text-body);
+}
+
+.mp-text-muted {
+  color: var(--mp-text-muted);
+}
+
+.mp-text-subtle {
+  color: var(--mp-text-subtle);
+}
+
+.mp-border {
+  border-color: var(--mp-border);
+}
+
+.mp-chip-inactive {
+  background-color: var(--mp-bg-card);
+  border: 1px solid var(--mp-border);
+  color: var(--mp-text-body);
+}
+.mp-chip-inactive:hover {
+  background-color: var(--mp-bg-hover);
+  border-color: #059669;
+  color: #059669;
+}
+html.dark .mp-chip-inactive:hover {
+  border-color: #10b981;
+  color: #34d399;
+}
+
+/* Compatibilidad de clases semánticas universales */
+.text-text-main {
+  color: var(--text-main) !important;
+}
+.text-text-muted {
+  color: var(--text-muted) !important;
+}
+.text-text-subtle {
+  color: var(--text-subtle) !important;
+}
+.bg-bg-page {
+  background-color: var(--bg-page);
+}
+.bg-surface-card {
+  background-color: var(--surface-card);
+}
+.bg-surface-elevated {
+  background-color: var(--surface-elevated);
+}
+.bg-surface-muted {
+  background-color: var(--surface-muted);
+}
+.border-border-subtle {
+  border-color: var(--border-subtle);
+}
+.border-border-strong {
+  border-color: var(--border-strong);
+}
+
+/* -----------------------------------------------------------------------------
+   9. ESTILOS BASE MAPLIBRE GL / MAPCN
+   ----------------------------------------------------------------------------- */
+@layer base {
+  .maplibregl-popup-content {
+    @apply bg-transparent! shadow-none! p-0! rounded-none!;
+  }
+  .maplibregl-popup-tip {
+    @apply hidden!;
+  }
+  .maplibregl-ctrl-attrib {
+    @apply bg-background! text-muted-foreground! border-border! rounded-md! border! shadow-sm!;
+  }
+  .maplibregl-ctrl-attrib a {
+    @apply text-muted-foreground!;
+  }
+  .maplibregl-ctrl-attrib a:hover {
+    @apply text-foreground!;
+  }
+  .maplibregl-ctrl-attrib-button {
+    @apply bg-transparent! dark:invert;
+  }
+}

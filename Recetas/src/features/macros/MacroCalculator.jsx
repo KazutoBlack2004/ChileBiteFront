@@ -3,7 +3,9 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from '@/lib/supabaseClient';
 import CopilotChat from './CopilotChat';
-import { Sparkles } from 'lucide-react';
+import IngredientScannerModal from './IngredientScannerModal';
+import { INGREDIENT_SYNONYMS } from './foodTranslations';
+import { Sparkles, Camera } from 'lucide-react';
 import { AuthProvider } from '@/features/auth/context/AuthContext';
 import { ALL_UNIT_OPTIONS, getAvailableUnitsForIngredient } from '@/shared/utils/unitRules';
 
@@ -54,9 +56,8 @@ function CustomUnitSelect({ value, onChange, fullWidth = false, options = ALL_UN
         onClick={toggleOpen}
         aria-label="Seleccionar unidad de medida"
         aria-expanded={isOpen}
-        className={`flex items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm font-bold text-slate-800 dark:text-slate-200 rounded-2xl outline-none cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm select-none ${
-          fullWidth ? 'w-full px-4 py-3' : 'px-4 py-2.5'
-        }`}
+        className={`flex items-center justify-between gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-sm font-bold text-slate-800 dark:text-slate-200 rounded-2xl outline-none cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-sm select-none ${fullWidth ? 'w-full px-4 py-3' : 'px-4 py-2.5'
+          }`}
       >
         <span className="truncate pr-1">{selectedOption.label}</span>
         <motion.div
@@ -107,11 +108,10 @@ function CustomUnitSelect({ value, onChange, fullWidth = false, options = ALL_UN
                       onChange(u.val);
                       setIsOpen(false);
                     }}
-                    className={`w-full text-left px-4 py-2.5 text-sm font-bold transition-colors ${
-                      value === u.val
-                        ? 'bg-[#A0522D]/10 text-[#A0522D] dark:bg-[#A0522D]/20 dark:text-[#d4906a]'
-                        : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
-                    }`}
+                    className={`w-full text-left px-4 py-2.5 text-sm font-bold transition-colors ${value === u.val
+                      ? 'bg-[#A0522D]/10 text-[#A0522D] dark:bg-[#A0522D]/20 dark:text-[#d4906a]'
+                      : 'text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
                   >
                     {u.label}
                   </motion.button>
@@ -154,16 +154,45 @@ function IngredientSearch({ onAdd, allIngredients, loadingIngredients }) {
   const [cantidad, setCantidad] = useState("100");
   const [unidad, setUnidad] = useState("g");
   const [isOpenUnidad, setIsOpenUnidad] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
   const suggestions = useMemo(() => {
     const q = normalize(query.trim());
     if (!q || q.length < 2 || selectedIngredient) return [];
+    const searchTerms = INGREDIENT_SYNONYMS[q] || [q];
     return allIngredients
-      .filter((ing) => normalize(ing.nombre).includes(q))
+      .filter((ing) => {
+        const normName = normalize(ing.nombre);
+        return searchTerms.some((term) => normName.includes(term));
+      })
+      .sort((a, b) => {
+        const normA = normalize(a.nombre);
+        const normB = normalize(b.nombre);
+        const exactA = searchTerms.some((t) => normA === t);
+        const exactB = searchTerms.some((t) => normB === t);
+        if (exactA && !exactB) return -1;
+        if (!exactA && exactB) return 1;
+        const startsA = searchTerms.some((t) => normA.startsWith(t));
+        const startsB = searchTerms.some((t) => normB.startsWith(t));
+        if (startsA && !startsB) return -1;
+        if (!startsA && startsB) return 1;
+        return normA.length - normB.length;
+      })
       .slice(0, 8);
   }, [query, allIngredients, selectedIngredient]);
+
+  const handleCameraIngredientDetected = (detectedName) => {
+    if (!detectedName) return;
+    setSelectedIngredient(null);
+    setQuery(detectedName);
+    setIsOpen(true);
+    setActiveIdx(0);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  };
 
   useEffect(() => {
     const handler = (e) => {
@@ -287,7 +316,28 @@ function IngredientSearch({ onAdd, allIngredients, loadingIngredients }) {
           }}
           onFocus={() => suggestions.length > 0 && setIsOpen(true)}
           onKeyDown={handleKeyDown}
-          className="w-full pl-12 pr-4 py-4 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-[#A0522D] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 transition-all font-medium text-base disabled:opacity-50 disabled:cursor-wait shadow-sm"
+          className="w-full pl-12 pr-14 py-4 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl outline-none focus:border-[#A0522D] text-slate-800 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600 transition-all font-medium text-base disabled:opacity-50 disabled:cursor-wait shadow-sm"
+        />
+
+        {/* Botón de reconocimiento de ingrediente por cámara/imagen (TensorFlow.js) */}
+        <div className="absolute inset-y-0 right-2.5 flex items-center">
+          <button
+            type="button"
+            onClick={() => setIsScannerOpen(true)}
+            disabled={loadingIngredients}
+            title="Reconocer ingrediente con cámara o imagen (IA)"
+            aria-label="Reconocer ingrediente por cámara o imagen"
+            className="p-2.5 rounded-xl bg-[#A0522D]/10 hover:bg-[#A0522D] text-[#A0522D] dark:text-[#d4906a] hover:text-white dark:hover:text-white transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs active:scale-95"
+          >
+            <Camera className="w-5 h-5" />
+          </button>
+        </div>
+
+        <IngredientScannerModal
+          isOpen={isScannerOpen}
+          onClose={() => setIsScannerOpen(false)}
+          onSelectIngredientName={handleCameraIngredientDetected}
+          allIngredients={allIngredients}
         />
 
         {showDrop && (

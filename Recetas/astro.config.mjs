@@ -1,4 +1,5 @@
 import { defineConfig } from 'astro/config';
+import { fileURLToPath } from 'node:url';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@astrojs/react';
 import vercel from '@astrojs/vercel';
@@ -25,6 +26,8 @@ try {
   console.error("Error al generar las páginas personalizadas para el sitemap:", err);
 }
 
+const nodeFetchShimPath = fileURLToPath(new URL('./src/lib/nodeFetchShim.js', import.meta.url));
+
 // https://astro.build/config
 export default defineConfig({
   site: 'https://chilebite.cl',
@@ -38,9 +41,45 @@ export default defineConfig({
   },
 
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [
+      tailwindcss(),
+      {
+        name: 'tfjs-browser-node-fetch-shim',
+        enforce: 'pre',
+        resolveId(id) {
+          if (
+            id === 'node-fetch' ||
+            id.includes('node-fetch/lib/index')
+          ) {
+            return nodeFetchShimPath;
+          }
+        },
+      },
+    ],
+    resolve: {
+      alias: {
+        'node-fetch': nodeFetchShimPath,
+      },
+    },
     optimizeDeps: {
-      include: ['dompurify', '@heroui/react', '@heroui/toast', 'lucide-react', '@supabase/supabase-js', 'maplibre-gl', '@blobatar/react'],
+      include: [
+        'react',
+        'react-dom',
+        'react-dom/client',
+        'react/jsx-runtime',
+        'react/jsx-dev-runtime',
+        'framer-motion',
+        'dompurify',
+        '@heroui/react',
+        '@heroui/toast',
+        'lucide-react',
+        '@supabase/supabase-js',
+        'maplibre-gl',
+        '@blobatar/react',
+        'whatwg-url',
+        '@tensorflow/tfjs',
+        '@tensorflow-models/mobilenet',
+      ],
     },
   },
 
